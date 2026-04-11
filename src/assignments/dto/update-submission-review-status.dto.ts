@@ -1,0 +1,17 @@
+import { IsIn, IsOptional, IsString } from "class-validator";
+import { submissionReviewStatusValues } from "../assignment.types";
+
+export class UpdateSubmissionReviewStatusDto {
+  @IsIn(submissionReviewStatusValues)
+  reviewStatus!: (typeof submissionReviewStatusValues)[number];
+
+  @IsString()
+  actorId!: string;
+
+  @IsString()
+  actorName!: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
+}

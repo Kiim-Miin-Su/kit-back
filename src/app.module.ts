@@ -12,6 +12,7 @@ import { EnrollmentsModule } from "./enrollments/enrollments.module";
 import { FilesModule } from "./files/files.module";
 import { HealthModule } from "./health/health.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { PrismaModule } from "./prisma/prisma.module";
 import { ProgressModule } from "./progress/progress.module";
 import { QuizzesModule } from "./quizzes/quizzes.module";
 import { UsersModule } from "./users/users.module";
@@ -19,6 +20,7 @@ import { UsersModule } from "./users/users.module";
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
     AuthModule,
     UsersModule,
     CoursesModule,

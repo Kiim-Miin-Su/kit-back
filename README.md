@@ -21,17 +21,23 @@ npm run build
 ## 현재 구현 구조
 - `src/main.ts`: 전역 ValidationPipe
 - `src/app.module.ts`: 루트 모듈
+- `src/prisma`: `PrismaModule`, `PrismaService`
 - `src/admin`: 관리자 수업/멤버/일정/출석 scope/감사로그
 - `src/assignments`: 학생/강사 과제/제출/리뷰/타임라인
 - `src/files`: presign/complete/메타 조회
 - `src/health`: `GET /healthz`
 - `src/courses/course-assignment-audit.controller.ts`: 수업 감사로그 API
-- `prisma/schema.prisma`: DB 스키마 초안
+- `prisma/schema.prisma`: 현재 REST 계약 기준 PostgreSQL/Prisma 스키마
+- `prisma/seed.ts`: front-aligned mock seed를 Prisma seed로 이관한 개발용 seed
+- `../docker-compose.db.yml`: 로컬 PostgreSQL 실행용 compose 파일
 
 ## 현재 구현 상태
 - 구현 완료: `admin`, `assignments`, `files`, `health`, `auth`, `users`, `courses`, `enrollments`, `attendance`
 - 인증은 로컬 HMAC access token + refresh cookie 구조로 동작한다.
 - 저장소는 `interface -> in-memory repository -> service -> controller` 패턴으로 분리되어 있다.
+- Prisma/PostgreSQL 전환 1단계로 schema rewrite, seed, `PrismaModule` scaffold는 완료됐다.
+- 아직 런타임 provider 스위칭은 하지 않았고, 실제 요청 처리는 in-memory 저장소가 담당한다.
+- 현재 repository 계약이 동기식 `read()/write()` 스냅샷 API라서, Prisma 전환 전 `async` 메서드 기반 계약으로 한 번 정리하는 작업이 필요하다.
 
 ## 현재 API
 - `POST /auth/sign-in`
@@ -65,11 +71,37 @@ npm run build
 - `GET /courses/:courseId/assignment-audit`
 
 ## 다음 구현 우선순위
-1. Files owner 검증 보강
-2. Assignments/Admin에도 AuthGuard 확장
-3. Prisma 저장소 전환
+1. Prisma 저장소 구현체 추가 + `DATA_SOURCE=memory|prisma` provider 스위칭
+2. Files owner 검증 보강
+3. Assignments/Admin에도 AuthGuard 확장
 4. 영상 업로드/트랜스코딩
 5. 플레이어 토큰/진도 API
+
+## PostgreSQL/Prisma 로컬 작업
+1. PostgreSQL 실행
+```bash
+docker compose -f ../docker-compose.db.yml up -d
+```
+
+2. Prisma schema 검증
+```bash
+npm run prisma:validate
+```
+
+3. Prisma client 생성
+```bash
+npm run prisma:generate
+```
+
+4. 마이그레이션 생성/적용
+```bash
+npm run prisma:migrate
+```
+
+5. 개발 seed 실행
+```bash
+npm run prisma:seed
+```
 
 ## 로컬 계정
 - `student-demo-01@koreait.academy / password123`

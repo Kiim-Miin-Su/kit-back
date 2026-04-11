@@ -11,6 +11,10 @@ FROM deps AS build
 COPY . .
 RUN npm run build
 
+FROM deps AS migrate
+COPY . .
+CMD ["npx", "prisma", "migrate", "deploy"]
+
 FROM node:20-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production

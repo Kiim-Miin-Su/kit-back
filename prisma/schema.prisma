@@ -7,217 +7,504 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  STUDENT
-  INSTRUCTOR
+enum AppUserRole {
   ADMIN
+  INSTRUCTOR
+  ASSISTANT
+  STUDENT
 }
 
 enum CourseStatus {
-  DRAFT
-  PUBLISHED
-  ARCHIVED
+  ACTIVE
+  PENDING
 }
 
-enum LessonType {
-  VIDEO
-  QUIZ
-  DOC
+enum CoursePacingType {
+  INSTRUCTOR_PACED
+  SELF_PACED
 }
 
-enum EnrollmentAccessStatus {
+enum PublicEnrollmentStatus {
+  NOT_ENROLLED
   PENDING
   ACTIVE
-  EXPIRED
-  CANCELLED
-  BLOCKED
+  COMPLETED
 }
 
-enum PaymentStatus {
-  READY
-  PAID
-  REFUNDED
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CourseMemberRole {
+  INSTRUCTOR
+  ASSISTANT
+  STUDENT
+}
+
+enum ScheduleVisibilityType {
+  GLOBAL
+  CLASS
+}
+
+enum ScheduleSourceType {
+  SYSTEM
+  CUSTOM
+}
+
+enum EnrollmentStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+}
+
+enum AttendanceStatus {
+  NOT_CHECKED_IN
+  CHECKED_IN
+  LATE
+  ABSENT
+}
+
+enum SubmissionEditorType {
+  IDE
+  NOTE
+}
+
+enum SubmissionReviewStatus {
+  SUBMITTED
+  REVIEWED
+  NEEDS_REVISION
+}
+
+enum SubmissionMessageFormat {
+  TEXT
+  MARKDOWN
+}
+
+enum SubmissionFeedbackEntryType {
+  GENERAL
+  CODE_SUGGESTION
+}
+
+enum SubmissionCodeLanguage {
+  TYPESCRIPT
+  JAVASCRIPT
+  PYTHON
+  JAVA
+  SQL
+  MARKDOWN
+  PLAINTEXT
+}
+
+enum SubmissionTimelineEventType {
+  SUBMITTED
+  RESUBMITTED
+  REVIEW_STATUS_CHANGED
+  COMMENTED
+  VIDEO_UPLOADED
+}
+
+enum AuditActorRole {
+  ADMIN
+  INSTRUCTOR
+  ASSISTANT
+  STUDENT
+}
+
+enum AuditAction {
+  SUBMITTED
+  RESUBMITTED
+  REVIEW_STATUS_CHANGED
+  FEEDBACK_ADDED
+  ASSIGNMENT_UPDATED
+  TEMPLATE_UPDATED
+}
+
+enum FileUploadStatus {
+  PENDING
+  COMPLETED
+  FAILED
 }
 
 model User {
-  id              String       @id @default(cuid())
-  role            UserRole
-  name            String
-  email           String       @unique
-  oauthProvider   String?
-  oauthProviderId String?
-  createdAt       DateTime     @default(now())
-  courses         Course[]
-  enrollments     Enrollment[]
-  notifications   Notification[]
-  aiInteractions  AiInteraction[]
+  id                   String                @id @default(cuid())
+  userId               String                @unique @map("user_id")
+  email                String                @unique
+  passwordHash         String                @map("password_hash")
+  passwordSalt         String                @map("password_salt")
+  name                 String
+  birthDate            String?               @map("birth_date")
+  title                String
+  role                 AppUserRole
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
+  refreshSessions      AuthRefreshSession[]
+  instructedCourses    Course[]              @relation("CourseInstructor")
+  courseMemberships    CourseMember[]
+  enrollments          Enrollment[]
+  attendanceRecords    AttendanceRecord[]
+  assignmentTemplates  AssignmentTemplate[]  @relation("AssignmentTemplateUpdater")
+  submissionRevisions  SubmissionRevision[]  @relation("SubmissionStudent")
+  submissionFeedbacks  SubmissionFeedbackEntry[] @relation("SubmissionFeedbackReviewer")
+  submissionEvents     SubmissionTimelineEvent[] @relation("SubmissionTimelineActor")
+  auditEvents          CourseAssignmentAuditEvent[] @relation("CourseAuditActor")
+  files                File[]
+
+  @@map("users")
 }
 
-model Category {
-  id      String   @id @default(cuid())
-  name    String   @unique
-  courses Course[]
+model AuthRefreshSession {
+  id         String   @id @default(cuid())
+  sessionId  String   @unique @map("session_id")
+  userId     String   @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  expiresAt  DateTime @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  user       User     @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_refresh_sessions")
 }
 
 model Course {
-  id           String       @id @default(cuid())
-  instructorId String
-  categoryId   String?
-  title        String
-  description  String
-  thumbnailUrl String?
-  status       CourseStatus @default(DRAFT)
-  price        Int          @default(0)
-  createdAt    DateTime     @default(now())
-  instructor   User         @relation(fields: [instructorId], references: [id])
-  category     Category?    @relation(fields: [categoryId], references: [id])
-  sections     Section[]
-  enrollments  Enrollment[]
-  assignments  Assignment[]
-  aiInteractions AiInteraction[]
+  id                        String                 @id @default(cuid())
+  courseId                  String                 @unique @map("course_id")
+  slug                      String                 @unique
+  title                     String
+  subtitle                  String
+  description               String
+  category                  String
+  tags                      Json
+  level                     CourseLevel
+  durationLabel             String                 @map("duration_label")
+  lessonCount               Int                    @map("lesson_count")
+  priceLabel                String                 @map("price_label")
+  rating                    Float
+  reviewCount               Int                    @map("review_count")
+  enrollmentCount           Int                    @map("enrollment_count")
+  thumbnailTone             String                 @map("thumbnail_tone")
+  instructorUserId          String                 @map("instructor_user_id")
+  classScope                String                 @unique @map("class_scope")
+  status                    CourseStatus
+  sectionLabel              String                 @map("section_label")
+  roomLabel                 String                 @map("room_label")
+  capacity                  Int
+  startDate                 String                 @map("start_date")
+  endDate                   String                 @map("end_date")
+  enrollmentStartDate       String                 @map("enrollment_start_date")
+  enrollmentEndDate         String                 @map("enrollment_end_date")
+  pacingType                CoursePacingType       @map("pacing_type")
+  defaultEnrollmentStatus   PublicEnrollmentStatus @default(NOT_ENROLLED) @map("default_enrollment_status")
+  enrollmentStatusLabel     String?                @map("enrollment_status_label")
+  isFeatured                Boolean                @default(false) @map("is_featured")
+  learningPoints            Json                   @map("learning_points")
+  createdAt                 DateTime               @default(now()) @map("created_at")
+  updatedAt                 DateTime               @updatedAt @map("updated_at")
+  instructor                User                   @relation("CourseInstructor", fields: [instructorUserId], references: [userId], onDelete: Restrict)
+  curriculumPreviews        CourseCurriculumPreview[]
+  members                   CourseMember[]
+  enrollments               Enrollment[]
+  schedules                 Schedule[]
+  attendanceScopePolicies   AttendanceScopePolicy[]
+  assignments               Assignment[]
+  submissionRevisions       SubmissionRevision[]
+  auditEvents               CourseAssignmentAuditEvent[]
+
+  @@index([category])
+  @@index([status])
+  @@index([instructorUserId])
+  @@map("courses")
 }
 
-model Section {
-  id        String   @id @default(cuid())
-  courseId  String
-  title     String
-  sortOrder Int
-  course    Course   @relation(fields: [courseId], references: [id])
-  lessons   Lesson[]
-}
-
-model Lesson {
-  id              String          @id @default(cuid())
-  sectionId       String
-  title           String
-  lessonType      LessonType
-  sortOrder       Int
-  durationSec     Int             @default(0)
-  isPreview       Boolean         @default(false)
-  section         Section         @relation(fields: [sectionId], references: [id])
-  lectureAsset    LectureAsset?
-  progresses      LessonProgress[]
-  assignments     Assignment[]
-  quizzes         Quiz[]
-  aiInteractions  AiInteraction[]
-}
-
-model LectureAsset {
+model CourseCurriculumPreview {
   id            String   @id @default(cuid())
-  lessonId      String   @unique
-  videoUrl      String?
-  attachmentUrl String?
-  subtitleUrl   String?
-  noteContent   String?
-  lesson        Lesson   @relation(fields: [lessonId], references: [id])
+  previewId     String   @unique @map("preview_id")
+  courseId      String   @map("course_id")
+  title         String
+  durationLabel String   @map("duration_label")
+  sortOrder     Int      @map("sort_order")
+  isPreview     Boolean  @default(false) @map("is_preview")
+  summary       String?
+  headers       Json?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  course        Course   @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+
+  @@index([courseId, sortOrder])
+  @@map("course_curriculum_previews")
+}
+
+model CourseMember {
+  id         String           @id @default(cuid())
+  courseId   String           @map("course_id")
+  userId     String           @map("user_id")
+  role       CourseMemberRole
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+  course     Course           @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+  @@index([userId])
+  @@index([courseId, role])
+  @@map("course_members")
 }
 
 model Enrollment {
-  id            String                 @id @default(cuid())
-  userId        String
-  courseId      String
-  accessStatus  EnrollmentAccessStatus @default(PENDING)
-  grantedAt     DateTime?
-  expiredAt     DateTime?
-  paymentStatus PaymentStatus          @default(READY)
-  progressRate  Float                  @default(0)
-  lastLessonId  String?
-  user          User                   @relation(fields: [userId], references: [id])
-  course        Course                 @relation(fields: [courseId], references: [id])
-  lessonProgresses LessonProgress[]
-  submissions   AssignmentSubmission[]
-  quizAttempts  QuizAttempt[]
-  riskAnalytics RiskAnalytics[]
+  id           String           @id @default(cuid())
+  enrollmentId String           @unique @map("enrollment_id")
+  courseId     String           @map("course_id")
+  userId       String           @map("user_id")
+  status       EnrollmentStatus
+  enrolledAt   DateTime         @map("enrolled_at")
+  completedAt  DateTime?        @map("completed_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  course       Course           @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
-  @@unique([userId, courseId])
+  @@unique([courseId, userId])
+  @@index([userId, status])
+  @@index([courseId, status])
+  @@map("enrollments")
 }
 
-model LessonProgress {
-  id            String     @id @default(cuid())
-  enrollmentId  String
-  lessonId      String
-  watchedSeconds Int       @default(0)
-  completed     Boolean    @default(false)
-  lastWatchedAt DateTime?
-  enrollment    Enrollment @relation(fields: [enrollmentId], references: [id])
-  lesson        Lesson     @relation(fields: [lessonId], references: [id])
+model Schedule {
+  id                      String                 @id @default(cuid())
+  scheduleId              String                 @unique @map("schedule_id")
+  courseId                String?                @map("course_id")
+  title                   String
+  categoryLabel           String                 @map("category_label")
+  dateKey                 String                 @map("date_key")
+  dateLabel               String                 @map("date_label")
+  timeLabel               String                 @map("time_label")
+  locationLabel           String                 @map("location_label")
+  visibilityType          ScheduleVisibilityType @map("visibility_type")
+  visibilityScope         String                 @map("visibility_scope")
+  visibilityLabel         String                 @map("visibility_label")
+  requiresAttendanceCheck Boolean                @default(false) @map("requires_attendance_check")
+  attendanceWindowLabel   String?                @map("attendance_window_label")
+  attendanceWindowStartAt DateTime?              @map("attendance_window_start_at")
+  attendanceWindowEndAt   DateTime?              @map("attendance_window_end_at")
+  sourceType              ScheduleSourceType     @map("source_type")
+  supportsCodeCheckIn     Boolean                @default(false) @map("supports_code_check_in")
+  checkInCode             String?                @map("check_in_code")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
+  course                  Course?                @relation(fields: [courseId], references: [courseId], onDelete: SetNull)
+  attendanceRecords       AttendanceRecord[]
 
-  @@unique([enrollmentId, lessonId])
+  @@index([courseId])
+  @@index([dateKey])
+  @@index([visibilityScope])
+  @@map("schedules")
+}
+
+model AttendanceScopePolicy {
+  id         String   @id @default(cuid())
+  courseId   String   @map("course_id")
+  scope      String
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  course     Course   @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+
+  @@unique([courseId, scope])
+  @@map("attendance_scope_policies")
+}
+
+model AttendanceRecord {
+  id               String           @id @default(cuid())
+  userId           String           @map("user_id")
+  scheduleId       String           @map("schedule_id")
+  attendanceStatus AttendanceStatus @map("attendance_status")
+  checkedAt        DateTime?        @map("checked_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  user             User             @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  schedule         Schedule         @relation(fields: [scheduleId], references: [scheduleId], onDelete: Cascade)
+
+  @@unique([userId, scheduleId])
+  @@index([scheduleId])
+  @@map("attendance_records")
 }
 
 model Assignment {
-  id          String   @id @default(cuid())
-  courseId    String
-  lessonId    String?
-  title       String
-  description String
-  dueAt       DateTime?
-  course      Course   @relation(fields: [courseId], references: [id])
-  lesson      Lesson?  @relation(fields: [lessonId], references: [id])
-  submissions AssignmentSubmission[]
+  id              String   @id @default(cuid())
+  assignmentId    String   @unique @map("assignment_id")
+  courseId        String   @map("course_id")
+  title           String
+  prompt          String
+  dueAt           DateTime @map("due_at")
+  createdAt       DateTime @map("created_at")
+  allowFileUpload Boolean  @default(true) @map("allow_file_upload")
+  allowCodeEditor Boolean  @default(true) @map("allow_code_editor")
+  course          Course   @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  templates       AssignmentTemplate[]
+  revisions       SubmissionRevision[]
+  auditEvents     CourseAssignmentAuditEvent[]
+
+  @@index([courseId, dueAt])
+  @@map("assignments")
 }
 
-model AssignmentSubmission {
-  id                String     @id @default(cuid())
-  assignmentId      String
-  enrollmentId      String
-  content           String
-  submittedAt       DateTime   @default(now())
-  score             Float?
-  aiFeedbackSummary String?
-  assignment        Assignment @relation(fields: [assignmentId], references: [id])
-  enrollment        Enrollment @relation(fields: [enrollmentId], references: [id])
+model AssignmentTemplate {
+  id            String                 @id @default(cuid())
+  templateId    String                 @unique @map("template_id")
+  assignmentId  String                 @map("assignment_id")
+  courseId      String                 @map("course_id")
+  editorType    SubmissionEditorType   @map("editor_type")
+  codeLanguage  SubmissionCodeLanguage @map("code_language")
+  title         String
+  content       String
+  updatedAt     DateTime               @map("updated_at")
+  updatedByUserId String               @map("updated_by_user_id")
+  assignment    Assignment             @relation(fields: [assignmentId], references: [assignmentId], onDelete: Cascade)
+  updatedBy     User                   @relation("AssignmentTemplateUpdater", fields: [updatedByUserId], references: [userId], onDelete: Restrict)
+
+  @@unique([assignmentId, editorType, codeLanguage])
+  @@index([courseId])
+  @@map("assignment_templates")
 }
 
-model Quiz {
-  id       String        @id @default(cuid())
-  lessonId String
-  title    String
-  lesson   Lesson        @relation(fields: [lessonId], references: [id])
-  attempts QuizAttempt[]
+model SubmissionRevision {
+  id                 String                 @id @default(cuid())
+  submissionRevisionId String               @unique @map("submission_revision_id")
+  submissionGroupId  String                 @map("submission_group_id")
+  assignmentId       String                 @map("assignment_id")
+  courseId           String                 @map("course_id")
+  studentUserId      String                 @map("student_user_id")
+  studentNameSnapshot String                @map("student_name_snapshot")
+  assignmentTitleSnapshot String            @map("assignment_title_snapshot")
+  courseTitleSnapshot String                @map("course_title_snapshot")
+  message            String
+  code               String
+  codeLanguage       SubmissionCodeLanguage @map("code_language")
+  editorType         SubmissionEditorType   @map("editor_type")
+  reviewStatus       SubmissionReviewStatus @map("review_status")
+  revision           Int
+  submittedAt        DateTime               @map("submitted_at")
+  updatedAt          DateTime               @map("updated_at")
+  assignment         Assignment             @relation(fields: [assignmentId], references: [assignmentId], onDelete: Cascade)
+  course             Course                 @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  student            User                   @relation("SubmissionStudent", fields: [studentUserId], references: [userId], onDelete: Restrict)
+  feedbackEntries    SubmissionFeedbackEntry[]
+  timelineEvents     SubmissionTimelineEvent[]
+  attachments        SubmissionAttachment[]
+  auditEvents        CourseAssignmentAuditEvent[]
+
+  @@unique([assignmentId, studentUserId, revision])
+  @@index([studentUserId, submittedAt])
+  @@index([assignmentId, submittedAt])
+  @@index([courseId, submittedAt])
+  @@map("submission_revisions")
 }
 
-model QuizAttempt {
-  id           String     @id @default(cuid())
-  quizId        String
-  enrollmentId  String
-  score         Float?
-  submittedAt   DateTime   @default(now())
-  quiz          Quiz       @relation(fields: [quizId], references: [id])
-  enrollment    Enrollment @relation(fields: [enrollmentId], references: [id])
+model SubmissionFeedbackEntry {
+  id                 String                      @id @default(cuid())
+  feedbackEntryId    String                      @unique @map("feedback_entry_id")
+  submissionRevisionId String                    @map("submission_revision_id")
+  reviewerUserId     String                      @map("reviewer_user_id")
+  reviewerNameSnapshot String                    @map("reviewer_name_snapshot")
+  messageFormat      SubmissionMessageFormat     @map("message_format")
+  entryType          SubmissionFeedbackEntryType @map("entry_type")
+  message            String
+  code               String
+  codeLanguage       SubmissionCodeLanguage      @map("code_language")
+  reviewStatus       SubmissionReviewStatus?     @map("review_status")
+  createdAt          DateTime                    @map("created_at")
+  submissionRevision SubmissionRevision          @relation(fields: [submissionRevisionId], references: [submissionRevisionId], onDelete: Cascade)
+  reviewer           User                        @relation("SubmissionFeedbackReviewer", fields: [reviewerUserId], references: [userId], onDelete: Restrict)
+  attachments        FeedbackAttachment[]
+
+  @@index([submissionRevisionId, createdAt])
+  @@map("submission_feedback_entries")
 }
 
-model AiInteraction {
-  id            String   @id @default(cuid())
-  userId        String
-  courseId      String
-  lessonId      String?
-  question      String
-  answerSummary String
-  tokenUsage    Int      @default(0)
-  createdAt     DateTime @default(now())
-  user          User     @relation(fields: [userId], references: [id])
-  course        Course   @relation(fields: [courseId], references: [id])
-  lesson        Lesson?  @relation(fields: [lessonId], references: [id])
+model SubmissionTimelineEvent {
+  id                 String                      @id @default(cuid())
+  timelineEventId    String                      @unique @map("timeline_event_id")
+  submissionRevisionId String?                   @map("submission_revision_id")
+  eventType          SubmissionTimelineEventType @map("event_type")
+  actorUserId        String                      @map("actor_user_id")
+  actorNameSnapshot  String                      @map("actor_name_snapshot")
+  note               String?
+  createdAt          DateTime                    @map("created_at")
+  submissionRevision SubmissionRevision?         @relation(fields: [submissionRevisionId], references: [submissionRevisionId], onDelete: SetNull)
+  actor              User                        @relation("SubmissionTimelineActor", fields: [actorUserId], references: [userId], onDelete: Restrict)
+
+  @@index([submissionRevisionId, createdAt])
+  @@map("submission_timeline_events")
 }
 
-model RiskAnalytics {
-  id                String     @id @default(cuid())
-  enrollmentId      String
-  riskScore         Float
-  riskReason        String
-  recommendedAction String?
-  createdAt         DateTime   @default(now())
-  enrollment        Enrollment @relation(fields: [enrollmentId], references: [id])
+model CourseAssignmentAuditEvent {
+  id                   String         @id @default(cuid())
+  auditEventId         String         @unique @map("audit_event_id")
+  courseId             String         @map("course_id")
+  assignmentId         String         @map("assignment_id")
+  submissionRevisionId String?        @map("submission_revision_id")
+  actorUserId          String         @map("actor_user_id")
+  actorNameSnapshot    String         @map("actor_name_snapshot")
+  actorRole            AuditActorRole @map("actor_role")
+  action               AuditAction
+  note                 String?
+  occurredAt           DateTime       @map("occurred_at")
+  course               Course         @relation(fields: [courseId], references: [courseId], onDelete: Cascade)
+  assignment           Assignment     @relation(fields: [assignmentId], references: [assignmentId], onDelete: Cascade)
+  submissionRevision   SubmissionRevision? @relation(fields: [submissionRevisionId], references: [submissionRevisionId], onDelete: SetNull)
+  actor                User           @relation("CourseAuditActor", fields: [actorUserId], references: [userId], onDelete: Restrict)
+
+  @@index([courseId, occurredAt])
+  @@map("course_assignment_audit_events")
 }
 
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String
-  title     String
-  body      String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+model File {
+  id           String           @id @default(cuid())
+  fileId       String           @unique @map("file_id")
+  ownerUserId  String           @map("owner_user_id")
+  fileName     String           @map("file_name")
+  bucketKey    String           @unique @map("bucket_key")
+  contentType  String           @map("content_type")
+  size         Int
+  checksum     String
+  status       FileUploadStatus
+  uploadUrl    String           @map("upload_url")
+  downloadUrl  String?          @map("download_url")
+  createdAt    DateTime         @map("created_at")
+  completedAt  DateTime?        @map("completed_at")
+  owner        User             @relation(fields: [ownerUserId], references: [userId], onDelete: Restrict)
+  submissionAttachments SubmissionAttachment[]
+  feedbackAttachments   FeedbackAttachment[]
+
+  @@index([ownerUserId])
+  @@map("files")
+}
+
+model SubmissionAttachment {
+  id                   String             @id @default(cuid())
+  submissionRevisionId String             @map("submission_revision_id")
+  fileId               String             @map("file_id")
+  snapshotFileName     String             @map("snapshot_file_name")
+  snapshotMimeType     String             @map("snapshot_mime_type")
+  snapshotSizeBytes    Int                @map("snapshot_size_bytes")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  submissionRevision   SubmissionRevision @relation(fields: [submissionRevisionId], references: [submissionRevisionId], onDelete: Cascade)
+  file                 File               @relation(fields: [fileId], references: [fileId], onDelete: Restrict)
+
+  @@unique([submissionRevisionId, fileId])
+  @@map("submission_attachments")
+}
+
+model FeedbackAttachment {
+  id                String                  @id @default(cuid())
+  feedbackEntryId   String                  @map("feedback_entry_id")
+  fileId            String                  @map("file_id")
+  snapshotFileName  String                  @map("snapshot_file_name")
+  snapshotMimeType  String                  @map("snapshot_mime_type")
+  snapshotSizeBytes Int                     @map("snapshot_size_bytes")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  feedbackEntry     SubmissionFeedbackEntry @relation(fields: [feedbackEntryId], references: [feedbackEntryId], onDelete: Cascade)
+  file              File                    @relation(fields: [fileId], references: [fileId], onDelete: Restrict)
+
+  @@unique([feedbackEntryId, fileId])
+  @@map("feedback_attachments")
 }

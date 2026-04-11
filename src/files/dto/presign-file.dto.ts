@@ -4,9 +4,6 @@ import { FILE_MAX_SIZE_BYTES } from "../files.types";
 
 export class PresignFileDto {
   @IsString()
-  ownerId!: string;
-
-  @IsString()
   fileName!: string;
 
   @IsString()

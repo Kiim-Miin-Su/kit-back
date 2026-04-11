@@ -8,6 +8,7 @@ import {
   Post,
   UseGuards,
 } from "@nestjs/common";
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { AuthGuard } from "../auth/auth.guard";
 import { CurrentUser } from "../auth/current-user.decorator";
 import { AuthenticatedRequestUser } from "../auth/auth.types";
@@ -15,6 +16,8 @@ import { CreateEnrollmentDto } from "./dto/create-enrollment.dto";
 import { UpdateEnrollmentDto } from "./dto/update-enrollment.dto";
 import { EnrollmentsService } from "./enrollments.service";
 
+@ApiTags("enrollments")
+@ApiBearerAuth()
 @Controller()
 export class EnrollmentsController {
   constructor(private readonly enrollmentsService: EnrollmentsService) {}

@@ -5,7 +5,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync, timingSafeEqual } from "node:crypto";
 import { USERS_REPOSITORY, UsersRepository } from "./users.repository";
 import {
   AppUserRole,
@@ -53,7 +53,7 @@ export class UsersService {
       });
     }
 
-    const userId = this.createUserId(input.userName, database.users.length + 1);
+    const userId = this.createUserId(input.userName);
     const now = new Date().toISOString();
     const credential = this.createCredential(input.password);
     const created: StoredUserRecord = {
@@ -167,13 +167,14 @@ export class UsersService {
     return scryptSync(password, salt, 64).toString("hex");
   }
 
-  private createUserId(userName: string, sequence: number) {
+  private createUserId(userName: string) {
     const normalizedName = userName
       .trim()
       .toLowerCase()
       .replace(/[^a-z0-9가-힣]+/g, "-")
       .replace(/^-+|-+$/g, "");
     const fallbackName = normalizedName || "student";
-    return `${fallbackName}-${sequence.toString(36)}`;
+    const suffix = randomUUID().replace(/-/g, "").slice(0, 8);
+    return `${fallbackName}-${suffix}`;
   }
 }

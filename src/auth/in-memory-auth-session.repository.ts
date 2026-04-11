@@ -8,11 +8,11 @@ export class InMemoryAuthSessionRepository implements AuthSessionRepository {
     sessions: [],
   };
 
-  read(): AuthSessionDatabase {
+  async read(): Promise<AuthSessionDatabase> {
     return this.clone(this.database);
   }
 
-  write(database: AuthSessionDatabase): void {
+  async write(database: AuthSessionDatabase): Promise<void> {
     this.database = this.clone(database);
   }
 

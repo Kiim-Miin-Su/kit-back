@@ -58,12 +58,19 @@
 6. Prisma/PostgreSQL scaffold
 - `prisma/schema.prisma`
   - 현재 REST 계약 기준으로 재작성 완료
+- `prisma/migrations/20260411185600_init`
+  - 초기 PostgreSQL migration 생성 및 로컬 적용 검증 완료
 - `prisma/seed.ts`
   - front-aligned mock 데이터를 Prisma seed로 적재
+  - 누락된 운영용 course/file FK를 보강해서 실제 seed 가능 상태로 정리
 - `src/prisma`
   - `PrismaService`, `PrismaModule` 추가
 - `docker-compose.db.yml`
   - 로컬 PostgreSQL 16 개발 컨테이너
+ - `src/common/data-source.ts`
+   - `DATA_SOURCE=memory|prisma` 스위칭 헬퍼
+ - `src/*/prisma-*.repository.ts`
+   - `auth`, `users`, `courses`, `enrollments`, `attendance`용 Prisma 저장소 구현
 7. 감사로그 엔드포인트
 - `src/courses/course-assignment-audit.controller.ts`
   - `GET /courses/:courseId/assignment-audit`
@@ -133,12 +140,10 @@
 ## 5. 후속 구현 우선순위
 1. Prisma 저장소 전환 (P1)
 - 전제:
-  - 현재 `UsersRepository`, `CoursesRepository`, `EnrollmentsRepository`, `AttendanceRepository`, `AuthSessionRepository`는 동기식 `read()/write()` 계약이다.
-  - Prisma 저장소로 교체하려면 `async` 메서드 기반의 좁은 도메인 API로 저장소 인터페이스를 먼저 재정의하는 것이 안전하다.
+  - `UsersRepository`, `CoursesRepository`, `EnrollmentsRepository`, `AttendanceRepository`, `AuthSessionRepository`는 이미 `async read()/write()` 계약으로 정리됐다.
+  - `auth`, `users`, `courses`, `enrollments`, `attendance`는 `DATA_SOURCE=memory|prisma` provider switch가 완료됐다.
 - `AssignmentsRepository`, `FilesRepository`, `Admin` 저장소를 Prisma 구현체로 확장
-- `UsersRepository`, `CoursesRepository`, `EnrollmentsRepository`, `AttendanceRepository`도 같은 패턴으로 교체
-- `DATA_SOURCE=memory|prisma` provider switch 완성
-- Prisma mode 기준 통합 테스트 추가
+- Prisma mode 기준 통합 테스트를 분리/보강
 
 2. Files owner/권한 검증 보강 (P1)
 - presign/complete 시 actor와 owner 관계 검증
@@ -192,3 +197,13 @@
 - PostgreSQL 레퍼런스 정리: `./progress/postgres_reference_2026-04-12.md`
 - 프론트 구조: `../front/progress/INFO.md`
 - 프론트 아키텍처 핸드오프: `../front/progress/architecture.md`
+
+## 9. 검증 메모 (2026-04-12)
+- `npm run build` 통과
+- `npm test` 통과
+- 임시 로컬 PostgreSQL 인스턴스 기준:
+  - `prisma generate`
+  - `prisma migrate dev --name init`
+  - `prisma seed`
+  - `DATA_SOURCE=prisma npm test`
+  모두 통과

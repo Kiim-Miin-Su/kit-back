@@ -11,11 +11,11 @@ export class InMemoryAttendanceRepository implements AttendanceRepository {
     this.database = createFrontAlignedAttendanceDatabase();
   }
 
-  read(): AttendanceDatabase {
+  async read(): Promise<AttendanceDatabase> {
     return this.clone(this.database);
   }
 
-  write(database: AttendanceDatabase): void {
+  async write(database: AttendanceDatabase): Promise<void> {
     this.database = this.clone(database);
   }
 

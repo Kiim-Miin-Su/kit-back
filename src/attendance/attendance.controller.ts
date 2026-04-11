@@ -11,13 +11,13 @@ export class AttendanceController {
 
   @Get("me/attendance/workspace")
   @UseGuards(AuthGuard)
-  getWorkspace(@CurrentUser() user: AuthenticatedRequestUser) {
+  async getWorkspace(@CurrentUser() user: AuthenticatedRequestUser) {
     return this.attendanceService.getWorkspace(user.userId);
   }
 
   @Post("attendance/check-in")
   @UseGuards(AuthGuard)
-  checkIn(
+  async checkIn(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Body() body: CheckInDto,
   ) {

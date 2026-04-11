@@ -6,12 +6,12 @@ export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
   @Get()
-  getCatalog() {
+  async getCatalog() {
     return this.coursesService.getCatalog();
   }
 
   @Get(":slug")
-  getBySlug(@Param("slug") slug: string) {
+  async getBySlug(@Param("slug") slug: string) {
     return this.coursesService.getCourseBySlug(slug);
   }
 }

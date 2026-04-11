@@ -35,9 +35,10 @@ npm run build
 - 구현 완료: `admin`, `assignments`, `files`, `health`, `auth`, `users`, `courses`, `enrollments`, `attendance`
 - 인증은 로컬 HMAC access token + refresh cookie 구조로 동작한다.
 - 저장소는 `interface -> in-memory repository -> service -> controller` 패턴으로 분리되어 있다.
-- Prisma/PostgreSQL 전환 1단계로 schema rewrite, seed, `PrismaModule` scaffold는 완료됐다.
-- 아직 런타임 provider 스위칭은 하지 않았고, 실제 요청 처리는 in-memory 저장소가 담당한다.
-- 현재 repository 계약이 동기식 `read()/write()` 스냅샷 API라서, Prisma 전환 전 `async` 메서드 기반 계약으로 한 번 정리하는 작업이 필요하다.
+- repository 계약은 `async read()/write()` 기준으로 정리됐다.
+- `auth`, `users`, `courses`, `enrollments`, `attendance`는 `DATA_SOURCE=memory|prisma` provider 스위칭이 동작한다.
+- `prisma/schema.prisma`, `prisma/migrations`, `prisma/seed.ts` 기준으로 PostgreSQL 로컬 검증까지 완료했다.
+- `admin`, `assignments`, `files`는 아직 in-memory 구현체가 기준이다.
 
 ## 현재 API
 - `POST /auth/sign-in`
@@ -71,7 +72,7 @@ npm run build
 - `GET /courses/:courseId/assignment-audit`
 
 ## 다음 구현 우선순위
-1. Prisma 저장소 구현체 추가 + `DATA_SOURCE=memory|prisma` provider 스위칭
+1. `admin`, `assignments`, `files` Prisma 저장소 구현체 추가
 2. Files owner 검증 보강
 3. Assignments/Admin에도 AuthGuard 확장
 4. 영상 업로드/트랜스코딩
@@ -83,24 +84,39 @@ npm run build
 docker compose -f ../docker-compose.db.yml up -d
 ```
 
-2. Prisma schema 검증
+2. 환경변수 설정
+```bash
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_edu
+```
+
+3. Prisma schema 검증
 ```bash
 npm run prisma:validate
 ```
 
-3. Prisma client 생성
+4. Prisma client 생성
 ```bash
 npm run prisma:generate
 ```
 
-4. 마이그레이션 생성/적용
+5. 마이그레이션 생성/적용
 ```bash
 npm run prisma:migrate
 ```
 
-5. 개발 seed 실행
+6. 개발 seed 실행
 ```bash
 npm run prisma:seed
+```
+
+7. Prisma 모드 실행
+```bash
+npm run start:dev:prisma
+```
+
+8. Prisma 모드 테스트
+```bash
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_edu npm run test:prisma
 ```
 
 ## 로컬 계정

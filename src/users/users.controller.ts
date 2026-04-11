@@ -11,19 +11,19 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post("register")
-  register(@Body() body: CreateUserDto) {
+  async register(@Body() body: CreateUserDto) {
     return this.usersService.register(body);
   }
 
   @Get("me")
   @UseGuards(AuthGuard)
-  getMe(@CurrentUser() user: AuthenticatedRequestUser) {
+  async getMe(@CurrentUser() user: AuthenticatedRequestUser) {
     return this.usersService.getMyProfile(user.userId);
   }
 
   @Patch("me")
   @UseGuards(AuthGuard)
-  updateMe(
+  async updateMe(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Body() body: UpdateUserDto,
   ) {

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { scryptSync } from "node:crypto";
 import {
   createFrontAlignedAdminSeed,
   createFrontAlignedAssignmentDatabase,
@@ -19,16 +20,18 @@ async function main() {
   const enrollmentsDatabase = createFrontAlignedEnrollmentsDatabase();
   const attendanceDatabase = createFrontAlignedAttendanceDatabase();
   const assignmentsDatabase = createFrontAlignedAssignmentDatabase();
-  const fileRecords = createFrontAlignedFileRecords();
+  const fileRecords = buildPersistedFiles(createFrontAlignedFileRecords(), assignmentsDatabase);
   const adminSeed = createFrontAlignedAdminSeed();
+  const persistedCourses = buildPersistedCourses(coursesDatabase, adminSeed, userSeeds);
 
   for (const user of userSeeds) {
+    const credential = createSeedCredential(user.password, user.userId);
     await prisma.user.create({
       data: {
         userId: user.userId,
         email: user.email,
-        passwordHash: `seed:${user.password}`,
-        passwordSalt: `seed-salt:${user.userId}`,
+        passwordHash: credential.passwordHash,
+        passwordSalt: credential.passwordSalt,
         name: user.userName,
         birthDate: user.birthDate,
         title: user.title,
@@ -39,7 +42,7 @@ async function main() {
     });
   }
 
-  for (const course of coursesDatabase.courses) {
+  for (const course of persistedCourses) {
     await prisma.course.create({
       data: {
         courseId: course.id,
@@ -59,7 +62,7 @@ async function main() {
         thumbnailTone: course.thumbnailTone,
         instructorUserId: findUserIdByName(userSeeds, course.instructor.name),
         classScope: course.classScope,
-        status: course.status,
+        status: course.lifecycleStatus,
         sectionLabel: course.sectionLabel,
         roomLabel: course.roomLabel,
         capacity: course.capacity,
@@ -67,8 +70,8 @@ async function main() {
         endDate: course.endDate,
         enrollmentStartDate: course.enrollmentStartDate,
         enrollmentEndDate: course.enrollmentEndDate,
-        pacingType: course.pacingType,
-        defaultEnrollmentStatus: course.defaultEnrollmentStatus,
+        pacingType: "INSTRUCTOR_PACED",
+        defaultEnrollmentStatus: course.enrollmentStatus,
         enrollmentStatusLabel: course.enrollmentStatusLabel,
         isFeatured: course.isFeatured,
         learningPoints: course.learningPoints,
@@ -336,6 +339,14 @@ function mapUserRole(role: string) {
     | "STUDENT";
 }
 
+function createSeedCredential(password: string, userId: string) {
+  const passwordSalt = `seed-salt-${userId}`;
+  return {
+    passwordSalt,
+    passwordHash: scryptSync(password, passwordSalt, 64).toString("hex"),
+  };
+}
+
 function mapCourseLevel(level: string) {
   if (level === "입문") return "BEGINNER";
   if (level === "심화") return "ADVANCED";
@@ -396,6 +407,103 @@ function resolveScheduleIdFromKey(scheduleKey: string) {
 function buildSubmissionGroupId(submissionRevisionId: string) {
   const match = submissionRevisionId.match(/^(.*)-r\d+$/);
   return match?.[1] ?? submissionRevisionId;
+}
+
+function buildPersistedCourses(
+  coursesDatabase: ReturnType<typeof createFrontAlignedCoursesDatabase>,
+  adminSeed: ReturnType<typeof createFrontAlignedAdminSeed>,
+  userSeeds: ReturnType<typeof createFrontAlignedUserSeeds>,
+) {
+  const courseById = new Map(
+    coursesDatabase.courses.map((course) => [course.id, course]),
+  );
+
+  for (const adminCourse of adminSeed.courses) {
+    if (courseById.has(adminCourse.courseId)) {
+      continue;
+    }
+
+    const instructorUserId =
+      adminSeed.memberBindings.find(
+        (binding) => binding.courseId === adminCourse.courseId && binding.role === "INSTRUCTOR",
+      )?.userId ?? "instructor-dev-01";
+    const instructor = userSeeds.find((user) => user.userId === instructorUserId);
+
+    courseById.set(adminCourse.courseId, {
+      id: adminCourse.courseId,
+      slug: adminCourse.classScope,
+      title: adminCourse.courseTitle,
+      subtitle: `${adminCourse.courseTitle} 운영 강의`,
+      description: `${adminCourse.courseTitle} 과정을 운영용 데이터셋 기준으로 제공합니다.`,
+      category: adminCourse.category,
+      tags: [adminCourse.category, "LMS"],
+      level: "중급",
+      durationLabel: "12시간",
+      lessonCount: 24,
+      priceLabel: "월 구독 포함",
+      rating: 4.8,
+      reviewCount: 0,
+      enrollmentCount: 0,
+      thumbnailTone: "from-[#1f2937] via-[#374151] to-[#e5e7eb]",
+      instructor: {
+        name: instructor?.userName ?? "개발용 강사",
+        title: instructor?.title ?? "Instructor",
+      },
+      enrollmentStatus: "NOT_ENROLLED",
+      learningPoints: [
+        `${adminCourse.courseTitle} 운영 흐름을 확인합니다.`,
+        "강의, 수강, 출석 데이터를 함께 검증합니다.",
+      ],
+      curriculumPreview: [],
+      classScope: adminCourse.classScope,
+      lifecycleStatus: adminCourse.status,
+      sectionLabel: adminCourse.sectionLabel,
+      roomLabel: adminCourse.roomLabel,
+      capacity: adminCourse.capacity,
+      startDate: adminCourse.startDate,
+      endDate: adminCourse.endDate,
+      enrollmentStartDate: adminCourse.enrollmentStartDate,
+      enrollmentEndDate: adminCourse.enrollmentEndDate,
+    });
+  }
+
+  return [...courseById.values()];
+}
+
+function buildPersistedFiles(
+  fileRecords: ReturnType<typeof createFrontAlignedFileRecords>,
+  assignmentsDatabase: ReturnType<typeof createFrontAlignedAssignmentDatabase>,
+) {
+  const fileById = new Map(fileRecords.map((file) => [file.fileId, file]));
+
+  for (const submission of assignmentsDatabase.submissions) {
+    for (const attachment of submission.attachments) {
+      if (fileById.has(attachment.id)) {
+        continue;
+      }
+
+      fileById.set(attachment.id, {
+        fileId: attachment.id,
+        ownerId: submission.studentId,
+        fileName: attachment.fileName,
+        bucketKey: `${submission.studentId}/${attachment.id}/${attachment.fileName}`,
+        contentType: attachment.mimeType,
+        size: attachment.sizeBytes,
+        checksum: attachment.id.padEnd(64, "0").slice(0, 64),
+        status: "COMPLETED",
+        uploadUrl: `https://storage.mock.local/upload/${encodeURIComponent(
+          `${submission.studentId}/${attachment.id}/${attachment.fileName}`,
+        )}?signature=seed-signature`,
+        downloadUrl: `https://storage.mock.local/download/${encodeURIComponent(
+          `${submission.studentId}/${attachment.id}/${attachment.fileName}`,
+        )}`,
+        createdAt: submission.submittedAt,
+        completedAt: submission.submittedAt,
+      });
+    }
+  }
+
+  return [...fileById.values()];
 }
 
 main()

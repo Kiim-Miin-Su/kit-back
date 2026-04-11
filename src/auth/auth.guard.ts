@@ -10,7 +10,7 @@ import { AuthService } from "./auth.service";
 export class AuthGuard implements CanActivate {
   constructor(private readonly authService: AuthService) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{ headers?: Record<string, unknown>; user?: unknown }>();
     const authorization = request.headers?.authorization;
 
@@ -21,7 +21,9 @@ export class AuthGuard implements CanActivate {
       });
     }
 
-    request.user = this.authService.authenticateAccessToken(authorization.slice("Bearer ".length));
+    request.user = await this.authService.authenticateAccessToken(
+      authorization.slice("Bearer ".length),
+    );
     return true;
   }
 }

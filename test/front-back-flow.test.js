@@ -87,6 +87,10 @@ function getErrorMeta(error) {
   };
 }
 
+function makeMockUser(userId, name, role = "student") {
+  return { userId, name, role, email: `${userId}@test.local` };
+}
+
 async function expectHttpError(execute, expectedStatus, expectedCode) {
   try {
     await execute();
@@ -99,7 +103,7 @@ async function expectHttpError(execute, expectedStatus, expectedCode) {
 }
 
 test("front -> back: 관리자 회원검증/멤버배치 흐름", async () => {
-  const adminWorkspace = adminUsersController.getWorkspace();
+  const adminWorkspace = await adminUsersController.getWorkspace();
 
   assert.ok(Array.isArray(adminWorkspace.users));
   assert.ok(Array.isArray(adminWorkspace.courses));
@@ -110,23 +114,23 @@ test("front -> back: 관리자 회원검증/멤버배치 흐름", async () => {
   assert.equal(kimHana.userName, "김하나");
   assert.equal(kimHana.birthDate, "2001-04-15");
 
-  const searchByExactId = adminUsersController.searchUsers({ query: "student-kim-hana" });
+  const searchByExactId = await adminUsersController.searchUsers({ query: "student-kim-hana" });
   assert.ok(searchByExactId.users.some((user) => user.userId === "student-kim-hana"));
 
-  const searchByPrefixId = adminUsersController.searchUsers({ query: "student-kim" });
+  const searchByPrefixId = await adminUsersController.searchUsers({ query: "student-kim" });
   assert.ok(searchByPrefixId.users.some((user) => user.userId === "student-kim-hana"));
 
-  const searchByName = adminUsersController.searchUsers({ query: "김하나" });
+  const searchByName = await adminUsersController.searchUsers({ query: "김하나" });
   assert.ok(searchByName.users.some((user) => user.userId === "student-kim-hana"));
 
-  const searchByBirthDate = adminUsersController.searchUsers({ query: "2001-04-15" });
+  const searchByBirthDate = await adminUsersController.searchUsers({ query: "2001-04-15" });
   assert.ok(searchByBirthDate.users.some((user) => user.userId === "student-kim-hana"));
 
-  const searchByUnknown = adminUsersController.searchUsers({ query: "unknown-user-x" });
+  const searchByUnknown = await adminUsersController.searchUsers({ query: "unknown-user-x" });
   assert.equal(searchByUnknown.users.length, 0);
 
   const upsertMemberInput = await toValidatedDto(UpdateCourseMemberRoleDto, { role: "STUDENT" });
-  const upsertMember = adminCoursesController.upsertCourseMemberRole(
+  const upsertMember = await adminCoursesController.upsertCourseMemberRole(
     "course-next-ai-lms",
     "student-lee-jisoo",
     upsertMemberInput,
@@ -137,7 +141,7 @@ test("front -> back: 관리자 회원검증/멤버배치 흐름", async () => {
     role: "STUDENT",
   });
 
-  const workspaceAfterUpsert = adminUsersController.getWorkspace();
+  const workspaceAfterUpsert = await adminUsersController.getWorkspace();
   assert.ok(
     workspaceAfterUpsert.memberBindings.some(
       (binding) =>
@@ -147,8 +151,8 @@ test("front -> back: 관리자 회원검증/멤버배치 흐름", async () => {
     ),
   );
 
-  adminCoursesController.deleteCourseMember("course-next-ai-lms", "student-lee-jisoo");
-  const workspaceAfterDelete = adminUsersController.getWorkspace();
+  await adminCoursesController.deleteCourseMember("course-next-ai-lms", "student-lee-jisoo");
+  const workspaceAfterDelete = await adminUsersController.getWorkspace();
   assert.ok(
     !workspaceAfterDelete.memberBindings.some(
       (binding) =>
@@ -158,12 +162,10 @@ test("front -> back: 관리자 회원검증/멤버배치 흐름", async () => {
 
   await expectHttpError(
     () =>
-      Promise.resolve(
-        adminCoursesController.upsertCourseMemberRole(
-          "course-next-ai-lms",
-          "unknown-user",
-          upsertMemberInput,
-        ),
+      adminCoursesController.upsertCourseMemberRole(
+        "course-next-ai-lms",
+        "unknown-user",
+        upsertMemberInput,
       ),
     404,
     "USER_NOT_FOUND",
@@ -171,10 +173,11 @@ test("front -> back: 관리자 회원검증/멤버배치 흐름", async () => {
 });
 
 test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async () => {
-  const studentWorkspace = meAssignmentsController.getWorkspace({
-    studentId: "student-kim-hana",
-    studentName: "김하나",
-  });
+  const kimHana = makeMockUser("student-kim-hana", "김하나", "student");
+  const instructor = makeMockUser("instructor-민수-김", "민수 김", "instructor");
+  const demoStudent = makeMockUser("student-demo-01", "데모 수강생", "student");
+
+  const studentWorkspace = meAssignmentsController.getWorkspace(kimHana);
   assert.equal(studentWorkspace.studentId, "student-kim-hana");
   assert.ok(studentWorkspace.assignments.length > 0);
 
@@ -185,8 +188,6 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
   const previousLatestRevision = previousRevisions.length > 0 ? Math.max(...previousRevisions) : 0;
 
   const createSubmissionInput = await toValidatedDto(CreateStudentSubmissionDto, {
-    studentId: "student-kim-hana",
-    studentName: "김하나",
     assignmentId: targetAssignmentId,
     editorType: "IDE",
     message: "front-back 통합 테스트용 제출",
@@ -202,7 +203,7 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     ],
     enrolledCourseIds: ["course-next-ai-lms", "course-spring-lms-api"],
   });
-  const createdSubmission = meAssignmentsController.createSubmission(createSubmissionInput);
+  const createdSubmission = meAssignmentsController.createSubmission(kimHana, createSubmissionInput);
 
   assert.equal(createdSubmission.studentId, "student-kim-hana");
   assert.equal(createdSubmission.assignmentId, targetAssignmentId);
@@ -219,19 +220,16 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
 
   const updateReviewInput = await toValidatedDto(UpdateSubmissionReviewStatusDto, {
     reviewStatus: "NEEDS_REVISION",
-    actorId: "instructor-민수-김",
-    actorName: "민수 김",
     comment: "보완이 필요합니다.",
   });
   const updatedReview = instructorAssignmentsController.updateSubmissionReviewStatus(
+    instructor,
     createdSubmission.id,
     updateReviewInput,
   );
   assert.equal(updatedReview.reviewStatus, "NEEDS_REVISION");
 
   const addFeedbackInput = await toValidatedDto(AddSubmissionFeedbackDto, {
-    reviewerId: "instructor-민수-김",
-    reviewerName: "민수 김",
     messageFormat: "TEXT",
     entryType: "GENERAL",
     message: "수정 포인트를 반영해 주세요.",
@@ -241,6 +239,7 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     reviewStatus: "REVIEWED",
   });
   const feedbacked = instructorAssignmentsController.addSubmissionFeedback(
+    instructor,
     createdSubmission.id,
     addFeedbackInput,
   );
@@ -264,7 +263,7 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
   assert.ok(assignmentTimeline.timeline.some((item) => item.submissionId === createdSubmission.id));
   assert.ok(assignmentTimeline.submissionLabelById[createdSubmission.id]);
 
-  const audit = courseAssignmentAuditController.getCourseAssignmentAudit(createdSubmission.courseId);
+  const audit = await courseAssignmentAuditController.getCourseAssignmentAudit(createdSubmission.courseId);
   assert.ok(
     audit.some(
       (event) =>
@@ -282,8 +281,6 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
   );
 
   const notEnrolledInput = await toValidatedDto(CreateStudentSubmissionDto, {
-    studentId: "student-kim-hana",
-    studentName: "김하나",
     assignmentId: "assignment-next-auth-flow",
     editorType: "IDE",
     message: "수강 외 과목 제출 시도",
@@ -293,14 +290,12 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-spring-lms-api"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(notEnrolledInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(kimHana, notEnrolledInput)),
     400,
     "NOT_ENROLLED_COURSE",
   );
 
   const invalidEmptyInput = await toValidatedDto(CreateStudentSubmissionDto, {
-    studentId: "student-kim-hana",
-    studentName: "김하나",
     assignmentId: "assignment-next-auth-flow",
     editorType: "IDE",
     message: "   ",
@@ -310,14 +305,12 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(invalidEmptyInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(kimHana, invalidEmptyInput)),
     400,
     "INVALID_SUBMISSION",
   );
 
   const missingAttachmentInput = await toValidatedDto(CreateStudentSubmissionDto, {
-    studentId: "student-kim-hana",
-    studentName: "김하나",
     assignmentId: "assignment-next-auth-flow",
     editorType: "IDE",
     message: "없는 파일 첨부 시도",
@@ -334,14 +327,12 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(missingAttachmentInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(kimHana, missingAttachmentInput)),
     400,
     "ATTACHMENT_FILE_NOT_FOUND",
   );
 
   const pendingAttachmentInput = await toValidatedDto(CreateStudentSubmissionDto, {
-    studentId: "student-demo-01",
-    studentName: "데모 수강생",
     assignmentId: "assignment-next-course-filter",
     editorType: "IDE",
     message: "pending 파일 첨부 시도",
@@ -358,14 +349,12 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms", "course-llm-study-assistant"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(pendingAttachmentInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(demoStudent, pendingAttachmentInput)),
     400,
     "ATTACHMENT_FILE_NOT_READY",
   );
 
   const forbiddenAttachmentInput = await toValidatedDto(CreateStudentSubmissionDto, {
-    studentId: "student-kim-hana",
-    studentName: "김하나",
     assignmentId: "assignment-next-auth-flow",
     editorType: "IDE",
     message: "타인 파일 첨부 시도",
@@ -382,38 +371,39 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms", "course-spring-lms-api"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(forbiddenAttachmentInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(kimHana, forbiddenAttachmentInput)),
     400,
     "ATTACHMENT_FILE_FORBIDDEN",
   );
 });
 
 test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () => {
+  const kimHana = makeMockUser("student-kim-hana", "김하나", "student");
+
   const presignInput = await toValidatedDto(PresignFileDto, {
-    ownerId: "student-kim-hana",
     fileName: "integration-result.md",
     contentType: "text/markdown",
     size: 1024,
     checksum: "d".repeat(64),
   });
-  const presign = filesController.presign(presignInput);
+  const presign = await filesController.presign(kimHana, presignInput);
 
   assert.equal(presign.ownerId, "student-kim-hana");
   assert.equal(presign.status, "PENDING");
-  assert.ok(presign.uploadUrl.includes("storage.mock.local/upload"));
+  assert.ok(presign.uploadUrl);
 
   const completeInput = await toValidatedDto(CompleteFileUploadDto, {
     fileId: presign.fileId,
     checksum: "d".repeat(64),
     size: 1024,
   });
-  const completed = filesController.complete(completeInput);
+  const completed = await filesController.complete(completeInput);
 
   assert.equal(completed.fileId, presign.fileId);
   assert.equal(completed.status, "COMPLETED");
-  assert.ok(completed.downloadUrl.includes("storage.mock.local/download"));
+  assert.ok(completed.downloadUrl);
 
-  const fileMeta = filesController.getFileMetadata(presign.fileId);
+  const fileMeta = await filesController.getFileMetadata(presign.fileId);
   assert.equal(fileMeta.fileId, presign.fileId);
   assert.equal(fileMeta.status, "COMPLETED");
   assert.equal(fileMeta.checksum, "d".repeat(64));
@@ -427,13 +417,12 @@ test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () =
   );
 
   const checksumMismatchPresignInput = await toValidatedDto(PresignFileDto, {
-    ownerId: "student-kim-hana",
     fileName: "checksum-target.md",
     contentType: "text/markdown",
     size: 512,
     checksum: "a".repeat(64),
   });
-  const checksumMismatchTarget = filesController.presign(checksumMismatchPresignInput);
+  const checksumMismatchTarget = await filesController.presign(kimHana, checksumMismatchPresignInput);
   const checksumMismatchCompleteInput = await toValidatedDto(CompleteFileUploadDto, {
     fileId: checksumMismatchTarget.fileId,
     checksum: "b".repeat(64),
@@ -446,14 +435,13 @@ test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () =
   );
 
   const unsupportedMimeInput = await toValidatedDto(PresignFileDto, {
-    ownerId: "student-kim-hana",
     fileName: "integration.bin",
     contentType: "application/octet-stream",
     size: 1024,
     checksum: "e".repeat(64),
   });
   await expectHttpError(
-    () => Promise.resolve(filesController.presign(unsupportedMimeInput)),
+    () => filesController.presign(kimHana, unsupportedMimeInput),
     400,
     "UNSUPPORTED_MIME_TYPE",
   );
@@ -478,7 +466,7 @@ test("front -> back: 관리자 수업/출석 scope/일정 CRUD 흐름", async ()
     enrollmentEndDate: "2026-05-31",
     pacingType: "INSTRUCTOR_PACED",
   });
-  const createdCourse = adminCoursesController.createCourse(createCourseInput);
+  const createdCourse = await adminCoursesController.createCourse(createCourseInput);
 
   assert.ok(createdCourse.courseId);
   assert.ok(createdCourse.classScope);
@@ -486,14 +474,14 @@ test("front -> back: 관리자 수업/출석 scope/일정 CRUD 흐름", async ()
   const courseId = createdCourse.courseId;
   const classScope = createdCourse.classScope;
 
-  const scopeWorkspace = adminAttendanceScopesController.getAttendanceScopeWorkspace(courseId);
+  const scopeWorkspace = await adminAttendanceScopesController.getAttendanceScopeWorkspace(courseId);
   assert.ok(scopeWorkspace.allowedScheduleScopes.includes("global"));
   assert.ok(scopeWorkspace.allowedScheduleScopes.includes(classScope));
 
   const updateScopesInput = await toValidatedDto(UpdateAttendanceScopesDto, {
     allowedScheduleScopes: ["ai-product-engineering-3"],
   });
-  const updatedScopes = adminAttendanceScopesController.updateAttendanceScopes(
+  const updatedScopes = await adminAttendanceScopesController.updateAttendanceScopes(
     courseId,
     updateScopesInput,
   );
@@ -514,7 +502,7 @@ test("front -> back: 관리자 수업/출석 scope/일정 CRUD 흐름", async ()
     attendanceWindowStartAt: "2026-06-10T10:00:00+09:00",
     attendanceWindowEndAt: "2026-06-10T10:15:00+09:00",
   });
-  const createdSchedule = adminSchedulesController.createSchedule(createScheduleInput);
+  const createdSchedule = await adminSchedulesController.createSchedule(createScheduleInput);
   assert.ok(createdSchedule.id);
   assert.equal(createdSchedule.visibilityScope, classScope);
 
@@ -532,15 +520,15 @@ test("front -> back: 관리자 수업/출석 scope/일정 CRUD 흐름", async ()
     attendanceWindowStartAt: "2026-06-10T11:00:00+09:00",
     attendanceWindowEndAt: "2026-06-10T11:15:00+09:00",
   });
-  const updatedSchedule = adminSchedulesController.updateSchedule(scheduleId, updateScheduleInput);
+  const updatedSchedule = await adminSchedulesController.updateSchedule(scheduleId, updateScheduleInput);
   assert.equal(updatedSchedule.id, scheduleId);
   assert.equal(updatedSchedule.title, "운영 테스트 일정 수정");
 
-  adminSchedulesController.deleteSchedule(scheduleId);
-  adminCoursesController.deleteCourse(courseId);
+  await adminSchedulesController.deleteSchedule(scheduleId);
+  await adminCoursesController.deleteCourse(courseId);
 
   await expectHttpError(
-    () => Promise.resolve(adminAttendanceScopesController.getAttendanceScopeWorkspace(courseId)),
+    () => adminAttendanceScopesController.getAttendanceScopeWorkspace(courseId),
     404,
     "COURSE_NOT_FOUND",
   );

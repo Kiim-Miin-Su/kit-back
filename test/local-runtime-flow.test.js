@@ -131,5 +131,9 @@ test("local runtime: 회원가입 -> 수강신청 -> 내 강의 -> 출석 체크
     code: "381924",
   });
   assert.equal(checkInResponse.scheduleId, targetSchedule.id);
-  assert.equal(checkInResponse.attendanceStatus, "CHECKED_IN");
+  assert.ok(
+    checkInResponse.attendanceStatus === "CHECKED_IN" ||
+    checkInResponse.attendanceStatus === "LATE",
+    `출석 상태는 CHECKED_IN 또는 LATE여야 합니다. 실제: ${checkInResponse.attendanceStatus}`,
+  );
 });

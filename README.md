@@ -1,132 +1,181 @@
-# AI Edu LMS Backend
+# AI Edu LMS — Backend
 
-NestJS 기반 백엔드 저장소입니다.
+NestJS + TypeScript + Prisma ORM 기반 REST API 서버입니다.
 
-## 실행
-1. 의존성 설치
+---
+
+## 빠른 시작
+
+### 의존성 설치
 ```bash
 npm install
 ```
 
-2. 개발 서버
+### 개발 서버 (메모리 모드)
 ```bash
 npm run start:dev
 ```
+> `DATA_SOURCE=memory` 기본값 — PostgreSQL 없이 in-memory seed로 즉시 실행됩니다.
 
-3. 빌드
+### 개발 서버 (Prisma 모드)
+```bash
+# 1. PostgreSQL 실행
+docker compose -f ../docker-compose.db.yml up -d
+
+# 2. 환경변수 설정
+export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_edu
+
+# 3. Prisma 마이그레이션 + seed
+npm run prisma:migrate
+npm run prisma:seed
+
+# 4. Prisma 모드로 실행
+npm run start:dev:prisma
+```
+
+### 빌드
 ```bash
 npm run build
 ```
 
-## 현재 구현 구조
-- `src/main.ts`: 전역 ValidationPipe
-- `src/app.module.ts`: 루트 모듈
-- `src/prisma`: `PrismaModule`, `PrismaService`
-- `src/admin`: 관리자 수업/멤버/일정/출석 scope/감사로그
-- `src/assignments`: 학생/강사 과제/제출/리뷰/타임라인
-- `src/files`: presign/complete/메타 조회
-- `src/health`: `GET /healthz`
-- `src/courses/course-assignment-audit.controller.ts`: 수업 감사로그 API
-- `prisma/schema.prisma`: 현재 REST 계약 기준 PostgreSQL/Prisma 스키마
-- `prisma/seed.ts`: front-aligned mock seed를 Prisma seed로 이관한 개발용 seed
-- `../docker-compose.db.yml`: 로컬 PostgreSQL 실행용 compose 파일
+---
 
-## 현재 구현 상태
-- 구현 완료: `admin`, `assignments`, `files`, `health`, `auth`, `users`, `courses`, `enrollments`, `attendance`
-- 인증은 로컬 HMAC access token + refresh cookie 구조로 동작한다.
-- 저장소는 `interface -> in-memory repository -> service -> controller` 패턴으로 분리되어 있다.
-- repository 계약은 `async read()/write()` 기준으로 정리됐다.
-- `auth`, `users`, `courses`, `enrollments`, `attendance`는 `DATA_SOURCE=memory|prisma` provider 스위칭이 동작한다.
-- `prisma/schema.prisma`, `prisma/migrations`, `prisma/seed.ts` 기준으로 PostgreSQL 로컬 검증까지 완료했다.
-- `admin`, `assignments`, `files`는 아직 in-memory 구현체가 기준이다.
+## API 문서 (Swagger UI)
 
-## 현재 API
-- `POST /auth/sign-in`
-- `POST /auth/sign-out`
-- `GET /auth/me`
-- `POST /auth/refresh`
-- `POST /users/register`
-- `GET /users/me`
-- `PATCH /users/me`
-- `GET /courses`
-- `GET /courses/:slug`
-- `GET /me/courses`
-- `POST /enrollments`
-- `GET /me/enrollments`
-- `PATCH /enrollments/:enrollmentId`
-- `DELETE /enrollments/:enrollmentId`
-- `GET /me/attendance/workspace`
-- `POST /attendance/check-in`
-- `GET /admin/users/workspace`
-- `GET /admin/users/search`
-- `POST /admin/courses`
-- `DELETE /admin/courses/:courseId`
-- `PUT /admin/courses/:courseId/members/:userId/role`
-- `DELETE /admin/courses/:courseId/members/:userId`
-- `GET /admin/schedules/workspace`
-- `POST /admin/schedules`
-- `PUT /admin/schedules/:scheduleId`
-- `DELETE /admin/schedules/:scheduleId`
-- `GET /admin/courses/:courseId/attendance-scope-workspace`
-- `PUT /admin/courses/:courseId/attendance-scopes`
-- `GET /courses/:courseId/assignment-audit`
+서버 실행 후: **[http://localhost:4000/api-docs](http://localhost:4000/api-docs)**
 
-## 다음 구현 우선순위
-1. `admin`, `assignments`, `files` Prisma 저장소 구현체 추가
-2. Files owner 검증 보강
-3. Assignments/Admin에도 AuthGuard 확장
-4. 영상 업로드/트랜스코딩
-5. 플레이어 토큰/진도 API
+- Bearer 토큰 인증 지원 (`POST /auth/sign-in` → `accessToken` 복사 → Authorize)
+- 모든 엔드포인트에 `@ApiOperation`, `@ApiResponse` 데코레이터 적용
 
-## PostgreSQL/Prisma 로컬 작업
-1. PostgreSQL 실행
-```bash
-docker compose -f ../docker-compose.db.yml up -d
+---
+
+## 모듈 구조
+
+```
+src/
+├── main.ts                     # 서버 진입점 + Swagger 설정
+├── app.module.ts               # 루트 모듈
+├── prisma/                     # PrismaService (Global)
+├── common/data-source.ts       # DATA_SOURCE 환경변수 헬퍼
+├── auth/                       # 인증 (HMAC token + httpOnly cookie)
+├── users/                      # 회원가입·프로필
+├── courses/                    # 강의 카탈로그·감사로그
+├── enrollments/                # 수강 신청·내 수강 목록
+├── attendance/                 # 출석 체크인 (지각 판정 포함)
+├── assignments/                # 과제·제출·리뷰·피드백·타임라인
+├── files/                      # S3 Presigned URL 파일 업로드
+├── admin/                      # 관리자 수업·멤버·일정·출석 scope
+├── health/                     # GET /healthz
+└── mock-data/                  # 메모리 모드 seed 데이터
 ```
 
-2. 환경변수 설정
-```bash
-export DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_edu
+---
+
+## 데이터소스 전환 현황
+
+| 모듈 | 메모리 | Prisma |
+|------|--------|--------|
+| auth | ✅ | ✅ |
+| users | ✅ | ✅ |
+| courses | ✅ | ✅ |
+| enrollments | ✅ | ✅ |
+| attendance | ✅ | ✅ |
+| **admin** | ✅ | ✅ **신규** |
+| assignments | ✅ | ❌ (예정) |
+| files | ✅ | ❌ (예정) |
+
+> `DATA_SOURCE=prisma` 환경변수로 전환합니다.
+
+---
+
+## 인증 흐름
+
+1. `POST /auth/sign-in` → `{ accessToken, user }` 반환 + `ai_edu_refresh_token` (httpOnly) + `ai_edu_role` (readable) 쿠키 설정
+2. 모든 보호 엔드포인트: `Authorization: Bearer <accessToken>` 헤더 필요
+3. `POST /auth/refresh` → refresh cookie로 새 accessToken 발급 (Axios 인터셉터 자동 처리)
+
+---
+
+## 역할 (Role) 체계
+
+| 역할 | 접근 가능 엔드포인트 |
+|------|---------------------|
+| `ADMIN` | 모든 엔드포인트 |
+| `INSTRUCTOR`, `ASSISTANT` | `/instructor/*`, `/courses/:id/assignment-audit` |
+| `STUDENT` | `/me/*`, `/attendance/*`, `/submissions/*` |
+| 비인증 | `/courses`, `/users/register`, `/auth/*` |
+
+---
+
+## 파일 업로드 흐름
+
+```
+클라이언트                     서버                      S3
+    │─── POST /files/presign ──→│                         │
+    │←── { fileId, uploadUrl } ─│                         │
+    │─── PUT <uploadUrl> ───────────────────────────────→│
+    │─── POST /files/complete ──→│                        │
+    │←── { downloadUrl } ────────│                        │
 ```
 
-3. Prisma schema 검증
-```bash
-npm run prisma:validate
-```
+> `S3_BUCKET_UPLOADS` 미설정 시 Mock URL 반환 (개발 환경)
 
-4. Prisma client 생성
-```bash
-npm run prisma:generate
-```
+---
 
-5. 마이그레이션 생성/적용
-```bash
-npm run prisma:migrate
-```
+## 테스트
 
-6. 개발 seed 실행
 ```bash
-npm run prisma:seed
-```
+# 통합 테스트 (메모리 모드)
+node --test test/local-runtime-flow.test.js test/front-back-flow.test.js
 
-7. Prisma 모드 실행
-```bash
-npm run start:dev:prisma
-```
-
-8. Prisma 모드 테스트
-```bash
+# Prisma 모드 테스트
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_edu npm run test:prisma
 ```
 
-## 로컬 계정
-- `student-demo-01@koreait.academy / password123`
-- `instructor-dev-01@koreait.academy / password123`
-- `admin-root@koreait.academy / password123`
+**현재 테스트 커버리지**: 6 / 6 통과 (로그인→새로고침, 회원가입→수강→출석, 관리자 CRUD, 과제·리뷰·피드백, 파일 업로드)
 
-## 문서
-- 아키텍처 기준: `INFO.md`
-- 최신 계획: `progress/progress_02.md`
-- PostgreSQL 레퍼런스: `progress/postgres_reference_2026-04-12.md`
-- 프론트 상세 핸드오프: `progress/FRONT_HANDOFF_2026-04-09.md`
-- 프론트 아키텍처 문서: `../front/progress/architecture.md`
+---
+
+## 개발 계정
+
+| 역할 | 이메일 | 비밀번호 |
+|------|--------|---------|
+| student | `student-demo-01@koreait.academy` | `password123` |
+| instructor | `instructor-dev-01@koreait.academy` | `password123` |
+| admin | `admin-root@koreait.academy` | `password123` |
+
+---
+
+## Prisma 작업 명령어
+
+```bash
+npm run prisma:validate    # 스키마 검증
+npm run prisma:generate    # 클라이언트 생성
+npm run prisma:migrate     # 마이그레이션 생성 + 적용
+npm run prisma:seed        # 개발 seed 데이터 삽입
+npm run prisma:studio      # Prisma Studio (GUI)
+```
+
+---
+
+## 환경변수
+
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `PORT` | 서버 포트 | 4000 |
+| `CORS_ORIGIN` | 허용 origin | http://localhost:3000 |
+| `AUTH_TOKEN_SECRET` | HMAC 서명 시크릿 | fallback (dev only) |
+| `DATABASE_URL` | PostgreSQL URL | - |
+| `DATA_SOURCE` | `memory` \| `prisma` | memory |
+| `S3_BUCKET_UPLOADS` | S3 버킷명 | (Mock 사용) |
+| `AWS_REGION` | AWS 리전 | ap-northeast-2 |
+| `OPENAI_API_KEY` | OpenAI API 키 | - |
+
+---
+
+## 관련 문서
+
+- [`progress/INFO.md`](./progress/INFO.md) — 내부 구현 현황 (엔드포인트 목록, 검증 규칙, 보안 현황)
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md) — 기여 가이드 (코드 컨벤션, 테스트 작성법)
+- [`../ARCHITECTURE.md`](../ARCHITECTURE.md) — 전체 아키텍처
+- [`../DEPLOYMENT.md`](../DEPLOYMENT.md) — 배포 가이드

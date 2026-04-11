@@ -1,209 +1,214 @@
-# Backend Architecture Info (2026-04-12)
+# Backend Architecture Info (2026-04-12 updated)
 
 ## 1. 목적
 - 프론트 최신 구현과 백엔드 API/검증/도메인 규칙을 맞추기 위한 기준 문서.
 - 다음 개발자가 바로 구현을 이어갈 수 있도록 현재 구현 골격 + 후속 우선순위를 함께 기록한다.
 
-## 2. 현재 구현 상태 (Nest 구조)
-1. 엔트리
-- `src/main.ts`
-  - 전역 `ValidationPipe` 적용
-  - `transform`, `whitelist`, `forbidNonWhitelisted` 활성화
+---
 
-2. 모듈
-- `src/app.module.ts`:
-  - `AdminModule`, `AssignmentsModule`, `FilesModule`, `HealthModule` 포함
-  - `AuthModule`, `UsersModule`, `CoursesModule`, `EnrollmentsModule`, `AttendanceModule` 포함
-  - `PrismaModule` 포함
+## 2. 현재 구현 상태 (2026-04-12)
 
-3. 관리자 도메인 (`src/admin`)
-- 컨트롤러
-  - `admin-users.controller.ts`
-  - `admin-courses.controller.ts`
-  - `admin-schedules.controller.ts`
-  - `admin-attendance-scopes.controller.ts`
-- 서비스
-  - `admin.service.ts`
-- DTO/타입/검증
-  - `dto/*`
-  - `admin.types.ts`
-  - `admin.validation.ts`
+### 엔트리 (`src/main.ts`)
+- 전역 `ValidationPipe` 적용 (`transform`, `whitelist`, `forbidNonWhitelisted`)
+- **Swagger UI** `/api-docs` 자동 생성 (`@nestjs/swagger`, Bearer 인증 포함)
 
-4. 과제/파일/헬스체크
-- `src/assignments`
-  - 학생/강사 과제, 제출, 리뷰, 피드백, 타임라인
-  - `AssignmentsRepository` + `InMemoryAssignmentsRepository`
-- `src/files`
-  - `POST /files/presign`
-  - `POST /files/complete`
-  - `GET /files/:fileId`
-- `src/health/health.controller.ts`
-  - `GET /healthz`
+### 모듈 (`src/app.module.ts`)
+- 완성 모듈: `AuthModule`, `UsersModule`, `CoursesModule`, `EnrollmentsModule`, `AttendanceModule`, `AssignmentsModule`, `FilesModule`, `AdminModule`, `HealthModule`
+- 스텁 모듈 (TODO(P2)): `AiModule`, `AnalyticsModule`, `CurriculumsModule`, `NotificationsModule`, `ProgressModule`, `QuizzesModule`
+- `PrismaModule` (Global) — 모든 모듈에서 `PrismaService` 사용 가능
 
-5. 부분 구현/스텁
-5. 인증/사용자/수강/출석
-- `src/auth`
-  - HMAC 서명 access token
-  - refresh cookie + in-memory session repository
-  - `AuthGuard`, `RolesGuard`, `CurrentUser`
-- `src/users`
-  - 사용자 저장소/회원가입/내 정보 수정
-- `src/courses`
-  - 공개 카탈로그/상세 API
-- `src/enrollments`
-  - 수강 신청/내 수강/내 강의
-- `src/attendance`
-  - 학생 출석 워크스페이스/코드 인증
+### 인증 (`src/auth`)
+- HMAC 서명 access token (1h TTL)
+- httpOnly refresh token 쿠키 (7d TTL)
+- **non-httpOnly `ai_edu_role` 쿠키** — 프론트 middleware.ts가 역할 기반 라우팅에 사용
+- `AuthGuard`, `RolesGuard`, `@CurrentUser()` 데코레이터
+- 세션 관리: `InMemoryAuthSessionRepository` / `PrismaAuthSessionRepository`
 
-6. Prisma/PostgreSQL scaffold
-- `prisma/schema.prisma`
-  - 현재 REST 계약 기준으로 재작성 완료
-- `prisma/migrations/20260411185600_init`
-  - 초기 PostgreSQL migration 생성 및 로컬 적용 검증 완료
-- `prisma/seed.ts`
-  - front-aligned mock 데이터를 Prisma seed로 적재
-  - 누락된 운영용 course/file FK를 보강해서 실제 seed 가능 상태로 정리
-- `src/prisma`
-  - `PrismaService`, `PrismaModule` 추가
-- `docker-compose.db.yml`
-  - 로컬 PostgreSQL 16 개발 컨테이너
- - `src/common/data-source.ts`
-   - `DATA_SOURCE=memory|prisma` 스위칭 헬퍼
- - `src/*/prisma-*.repository.ts`
-   - `auth`, `users`, `courses`, `enrollments`, `attendance`용 Prisma 저장소 구현
-7. 감사로그 엔드포인트
-- `src/courses/course-assignment-audit.controller.ts`
-  - `GET /courses/:courseId/assignment-audit`
+### 관리자 도메인 (`src/admin`)
+- **모든 엔드포인트에 `AuthGuard` + `RolesGuard("admin")` 적용**
+- **AdminService Prisma 전환 완료** — `DATA_SOURCE=prisma` 시 Course, Schedule, CourseMember, AttendanceScopePolicy, CourseAssignmentAuditEvent 모두 Prisma 사용
+- `DATA_SOURCE=memory` 시 seed 데이터 기반 in-memory 동작 (기존 테스트 유지)
 
-## 3. 현재 엔드포인트
-1. 관리자 사용자
-- `GET /admin/users/workspace`
-- `GET /admin/users/search?query=`
+### 과제/파일 (`src/assignments`, `src/files`)
+- **모든 엔드포인트에 `AuthGuard`/`RolesGuard` 적용 완료**
+- DTO에서 `studentId`, `actorId`, `reviewerId`, `ownerId` 필드 제거 — `@CurrentUser()` 데코레이터로 주입
+- `resolveActorRole`: userId 문자열 패턴 매칭 → `user.role.toUpperCase()` 직접 사용으로 개선
+- `FilesService`: `@aws-sdk/s3-request-presigner` 통합 (S3_BUCKET 미설정 시 Mock fallback)
 
-2. 관리자 수업/멤버
-- `POST /admin/courses`
-- `DELETE /admin/courses/:courseId`
-- `PUT /admin/courses/:courseId/members/:userId/role`
-- `DELETE /admin/courses/:courseId/members/:userId`
+### 출석 (`src/attendance`)
+- 지각(LATE) 판정 구현: 체크인 시각 > `attendanceWindowStartAt + 10분` → `LATE`
+- Prisma 전환 완료
 
-3. 관리자 일정
-- `GET /admin/schedules/workspace`
-- `POST /admin/schedules`
-- `PUT /admin/schedules/:scheduleId`
-- `DELETE /admin/schedules/:scheduleId`
+### 데이터소스 전환
+- `src/common/data-source.ts`: `DATA_SOURCE=memory|prisma` 스위치
+- Prisma 전환 완료: `auth`, `users`, `courses`, `enrollments`, `attendance`, **`admin`**
+- 미전환: `assignments`, `files` (in-memory 저장소 유지)
 
-4. 출석 scope 정책
-- `GET /admin/courses/:courseId/attendance-scope-workspace`
-- `PUT /admin/courses/:courseId/attendance-scopes`
+---
 
-5. 수업 감사로그
-- `GET /courses/:courseId/assignment-audit`
+## 3. 엔드포인트 목록
 
-6. 과제/제출/리뷰
-- `GET /me/assignments/workspace`
-- `POST /me/assignments/submissions`
-- `GET /instructor/assignments/workspace`
-- `POST /instructor/assignments`
-- `PATCH /instructor/assignments/:assignmentId`
-- `PUT /instructor/assignments/:assignmentId/template`
-- `PATCH /instructor/assignments/submissions/:submissionId`
-- `POST /instructor/assignments/submissions/:submissionId/feedback`
-- `GET /submissions/:submissionId`
-- `GET /instructor/assignments/:assignmentId/timeline`
+> 전체 상세 문서: **`http://localhost:4000/api-docs`** (Swagger UI)
 
-7. 파일/헬스체크
-- `POST /files/presign`
-- `POST /files/complete`
-- `GET /files/:fileId`
-- `GET /healthz`
+### 인증
+- `POST /auth/sign-in` — 로그인 (accessToken + httpOnly refresh cookie)
+- `POST /auth/sign-out` 🔐 — 로그아웃
+- `GET /auth/me` 🔐 — 현재 사용자 정보
+- `POST /auth/refresh` — accessToken 갱신
 
-## 4. 서버 검증 규칙 (코드 반영)
-1. 수업
-- `classScope` 서버 자동 생성
-- 날짜 검증:
-  - `startDate <= endDate`
-  - `enrollmentStartDate <= enrollmentEndDate <= endDate`
+### 사용자
+- `POST /users/register` — 회원가입
+- `GET /users/me` 🔐 — 내 프로필
+- `PATCH /users/me` 🔐 — 프로필 수정
 
-2. 멤버 권한
-- 정원(capacity)은 `STUDENT`만 카운트
-- `ASSISTANT`, `INSTRUCTOR`는 정원 계산 제외
+### 강의 (공개)
+- `GET /courses` — 카탈로그
+- `GET /courses/:slug` — 상세
 
-3. 일정
+### 수강
+- `POST /enrollments` 🔐 — 수강 신청
+- `GET /me/enrollments` 🔐 — 내 수강 목록
+- `GET /me/courses` 🔐 — 내 강의 목록
+- `PATCH /enrollments/:id` 🔐 — 수강 상태 변경
+- `DELETE /enrollments/:id` 🔐 — 수강 취소
+
+### 출석
+- `GET /me/attendance/workspace` 🔐 — 출석 워크스페이스
+- `POST /attendance/check-in` 🔐 — 체크인 (CHECKED_IN | LATE)
+
+### 과제 (학생)
+- `GET /me/assignments/workspace` 🔐 — 나의 과제 목록·제출이력
+- `POST /me/assignments/submissions` 🔐 — 과제 제출
+
+### 과제 (강사/관리자)
+- `GET /instructor/assignments/workspace` 🔐👨‍🏫 — 강사 워크스페이스
+- `POST /instructor/assignments` 🔐👨‍🏫 — 과제 생성
+- `PATCH /instructor/assignments/:id` 🔐👨‍🏫 — 과제 수정
+- `PUT /instructor/assignments/:id/template` 🔐👨‍🏫 — 템플릿 upsert
+- `PATCH /instructor/assignments/submissions/:id` 🔐👨‍🏫 — 리뷰 상태 변경
+- `POST /instructor/assignments/submissions/:id/feedback` 🔐👨‍🏫 — 피드백 등록
+- `GET /instructor/assignments/:id/timeline` 🔐👨‍🏫 — 타임라인
+- `GET /submissions/:id` 🔐 — 제출 상세
+
+### 파일
+- `POST /files/presign` 🔐 — S3 Presigned PUT URL 발급
+- `POST /files/complete` 🔐 — 업로드 완료 처리
+- `GET /files/:fileId` 🔐 — 메타데이터 조회
+
+### 관리자
+- `GET /admin/users/workspace` 🔐🔑 — 전체 사용자·수업·멤버 현황
+- `GET /admin/users/search` 🔐🔑 — 사용자 검색
+- `POST /admin/courses` 🔐🔑 — 수업 생성
+- `DELETE /admin/courses/:id` 🔐🔑 — 수업 삭제
+- `PUT /admin/courses/:id/members/:userId/role` 🔐🔑 — 멤버 역할 배정
+- `DELETE /admin/courses/:id/members/:userId` 🔐🔑 — 멤버 제거
+- `GET /admin/schedules/workspace` 🔐🔑 — 일정 워크스페이스
+- `POST /admin/schedules` 🔐🔑 — 일정 생성
+- `PUT /admin/schedules/:id` 🔐🔑 — 일정 수정
+- `DELETE /admin/schedules/:id` 🔐🔑 — 일정 삭제
+- `GET /admin/courses/:id/attendance-scope-workspace` 🔐🔑 — 출석 scope 워크스페이스
+- `PUT /admin/courses/:id/attendance-scopes` 🔐🔑 — 출석 scope 업데이트
+- `GET /courses/:id/assignment-audit` 🔐👨‍🏫 — 감사로그
+
+> 🔐 인증 필요 | 🔑 admin 전용 | 👨‍🏫 instructor/assistant/admin
+
+---
+
+## 4. 서버 검증 규칙
+
+### 수업
+- `classScope` 서버 자동 생성 (courseId + title 기반)
+- 날짜: `startDate ≤ endDate`, `enrollmentStartDate ≤ enrollmentEndDate ≤ endDate`
+
+### 멤버 권한
+- 정원(capacity)은 `STUDENT`만 카운트. INSTRUCTOR, ASSISTANT는 제외
+
+### 일정
 - `dateKey` strict `YYYY-MM-DD`
-- `visibilityType=global`이면 `visibilityScope=global`
-- `visibilityType=class`면 등록된 class scope만 허용
-- `requiresAttendanceCheck=true`이면 `attendanceWindowEndAt` 필수
+- `visibilityType=global` → `visibilityScope=global` 필수
+- `visibilityType=class` → 등록된 classScope만 허용
+- `requiresAttendanceCheck=true` → `attendanceWindowEndAt` 필수
 
-4. 출석 scope
+### 출석 scope
 - 저장 시 `global + classScope` 자동 포함
 
-## 5. 후속 구현 우선순위
-1. Prisma 저장소 전환 (P1)
-- 전제:
-  - `UsersRepository`, `CoursesRepository`, `EnrollmentsRepository`, `AttendanceRepository`, `AuthSessionRepository`는 이미 `async read()/write()` 계약으로 정리됐다.
-  - `auth`, `users`, `courses`, `enrollments`, `attendance`는 `DATA_SOURCE=memory|prisma` provider switch가 완료됐다.
-- `AssignmentsRepository`, `FilesRepository`, `Admin` 저장소를 Prisma 구현체로 확장
-- Prisma mode 기준 통합 테스트를 분리/보강
+### 파일 업로드
+- MIME 허용 목록: `text/markdown`, `application/pdf`, `image/png`, `image/jpeg`, `image/gif`, `image/webp`
+- 최대 크기: 50MB
+- checksum: sha256 hex (64자)
 
-2. Files owner/권한 검증 보강 (P1)
-- presign/complete 시 actor와 owner 관계 검증
-- auth guard 적용 전에도 owner spoofing 방지 규칙 명시
+### 출석 체크인
+- 코드 불일치 → `INVALID_CODE`
+- 이미 체크인 → `ALREADY_CHECKED_IN`
+- 창 종료 후 → `ATTENDANCE_WINDOW_CLOSED`
+- `attendanceWindowStartAt + 10분` 초과 → `LATE`
 
-3. Assignments/Admin 인증 확장 (P1)
-- 현재 신규 학생 플로우는 auth 기반으로 동작한다.
-- 다음 단계에서 강사/관리자 엔드포인트에도 `AuthGuard`/`RolesGuard`를 본격 적용한다.
+---
 
-4. 강의 영상 업로드/처리 (P2)
-- `POST /instructor/videos/upload-init`
-- `POST /instructor/videos/upload-part`
-- `POST /instructor/videos/upload-complete`
-- `GET /instructor/videos/:videoId/status`
-- `PATCH /instructor/videos/:videoId/publish`
-- 백그라운드 트랜스코딩(HLS), 썸네일, 자막 처리
+## 5. 보안 현황 (2026-04-12)
 
-5. 강의 영상 플레이어 API (P2)
-- `GET /lessons/:lessonId/playback-token`
-- `GET /lessons/:lessonId/stream-manifest`
-- `POST /lessons/:lessonId/watch-events`
-- `PATCH /enrollments/:enrollmentId/last-position`
+| 항목 | 상태 |
+|------|------|
+| Admin 엔드포인트 AuthGuard | ✅ 완료 |
+| 과제/파일 AuthGuard | ✅ 완료 |
+| accessToken localStorage 제거 | ✅ 완료 (메모리 전용) |
+| 401 자동 갱신 인터셉터 | ✅ 완료 |
+| S3 Presigned URL | ✅ 완료 (S3_BUCKET 설정 필요) |
+| docker-compose AUTH_TOKEN_SECRET | ✅ 수정 완료 |
+| 프론트 middleware.ts 라우트 보호 | ✅ 완료 |
+| userId UUID 기반 생성 | ✅ 완료 |
+| actorRole user.role 직접 사용 | ✅ 완료 |
 
-## 6. 권장 데이터 모델
-- `users`
-- `courses`
-- `course_member_bindings`
-- `schedules`
-- `attendance_scope_policies`
-- `assignment_submissions`
-- `submission_feedback`
-- `course_assignment_audit_events`
-- `files`
-- `video_assets`
-- `video_transcode_jobs`
+---
 
-## 7. 에러코드 권장
-- `USER_NOT_FOUND`
-- `USER_NAME_MISMATCH`
-- `USER_BIRTHDATE_MISMATCH`
-- `COURSE_NOT_FOUND`
-- `COURSE_CAPACITY_EXCEEDED`
-- `INVALID_DATE_WINDOW`
-- `INVALID_SCHEDULE_SCOPE`
-- `INVALID_ATTENDANCE_WINDOW`
-- `INVALID_ATTENDANCE_SCOPE_POLICY`
+## 6. 후속 구현 우선순위
+
+### P1 (완료)
+- [x] Admin + Assignments + Files AuthGuard/RolesGuard
+- [x] docker-compose AUTH_TOKEN_SECRET 수정
+- [x] S3 Presigned URL 실제 구현
+- [x] accessToken 메모리 전용 + 401 자동 갱신
+- [x] Admin Service Prisma 전환
+- [x] 출석 지각(isLate) 감지 구현
+
+### P2 (완료)
+- [x] 프론트 middleware.ts 라우트 보호
+- [x] resolveActorRole → user.role 직접 사용
+- [x] Swagger UI 자동 생성
+
+### 남은 P2
+- [ ] 강의 영상 업로드/트랜스코딩/플레이어 API
+- [ ] AI/분석/알림/퀴즈 모듈 구현
+- [ ] AssignmentsRepository Prisma 전환
+- [ ] FilesRepository Prisma 전환
+
+---
+
+## 7. 환경변수 참조
+
+| 변수 | 설명 | 기본값 |
+|------|------|--------|
+| `PORT` | 서버 포트 | 4000 |
+| `CORS_ORIGIN` | 허용 origin | http://localhost:3000 |
+| `AUTH_TOKEN_SECRET` | HMAC 서명 시크릿 | fallback (dev only) |
+| `DATABASE_URL` | PostgreSQL 연결 URL | - |
+| `DATA_SOURCE` | `memory` \| `prisma` | memory |
+| `S3_BUCKET_UPLOADS` | S3 버킷명 | (미설정 시 Mock URL) |
+| `AWS_REGION` | AWS 리전 | ap-northeast-2 |
+| `OPENAI_API_KEY` | OpenAI API 키 | - |
+
+---
 
 ## 8. 참고 문서
-- 상세 계약: `./progress/FRONT_HANDOFF_2026-04-09.md`
-- 최신 계획: `./progress/progress_02.md`
-- PostgreSQL 레퍼런스 정리: `./progress/postgres_reference_2026-04-12.md`
-- 프론트 구조: `../front/progress/INFO.md`
-- 프론트 아키텍처 핸드오프: `../front/progress/architecture.md`
+- **Swagger UI**: `http://localhost:4000/api-docs` (런타임)
+- 상세 계약: `./FRONT_HANDOFF_2026-04-09.md`
+- 전체 아키텍처: `../../ARCHITECTURE.md`
+- 배포 가이드: `../../DEPLOYMENT.md`
+- 프론트 구조: `../../front/progress/INFO.md`
+
+---
 
 ## 9. 검증 메모 (2026-04-12)
-- `npm run build` 통과
-- `npm test` 통과
-- 임시 로컬 PostgreSQL 인스턴스 기준:
-  - `prisma generate`
-  - `prisma migrate dev --name init`
-  - `prisma seed`
-  - `DATA_SOURCE=prisma npm test`
-  모두 통과
+- `npm run build` ✅
+- `node --test test/local-runtime-flow.test.js test/front-back-flow.test.js` → 6/6 ✅
+- `DATA_SOURCE=prisma` 모드: Prisma migration 완료, seed 적용 후 동작 확인

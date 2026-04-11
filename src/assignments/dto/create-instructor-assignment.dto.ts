@@ -41,12 +41,6 @@ export class CreateInstructorAssignmentDto {
   @IsBoolean()
   allowCodeEditor!: boolean;
 
-  @IsString()
-  actorId!: string;
-
-  @IsString()
-  actorName!: string;
-
   @IsOptional()
   @ValidateNested()
   @Type(() => InitialAssignmentTemplateDto)

@@ -16,10 +16,4 @@ export class UpsertAssignmentTemplateDto {
 
   @IsString()
   content!: string;
-
-  @IsString()
-  actorId!: string;
-
-  @IsString()
-  actorName!: string;
 }

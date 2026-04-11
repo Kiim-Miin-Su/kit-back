@@ -20,10 +20,4 @@ export class UpdateInstructorAssignmentDto {
   @IsOptional()
   @IsBoolean()
   allowCodeEditor?: boolean;
-
-  @IsString()
-  actorId!: string;
-
-  @IsString()
-  actorName!: string;
 }

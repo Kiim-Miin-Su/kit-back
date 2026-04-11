@@ -9,12 +9,6 @@ import {
 import { SubmissionAttachmentDto } from "./submission-shared.dto";
 
 export class AddSubmissionFeedbackDto {
-  @IsString()
-  reviewerId!: string;
-
-  @IsString()
-  reviewerName!: string;
-
   @IsOptional()
   @IsIn(submissionMessageFormatValues)
   messageFormat?: (typeof submissionMessageFormatValues)[number];

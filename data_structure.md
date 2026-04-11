@@ -1,9 +1,16 @@
 # DB 구현 계획 (Prisma/PostgreSQL)
 
+> 참고 레퍼런스와 판단 근거는 `./progress/postgres_reference_2026-04-12.md`를 기준으로 본다.
+
 ## 1. 목표
-- 현재 in-memory 도메인(`admin`, `assignments`, `files`)을 Prisma 저장소로 단계 전환.
+- 현재 in-memory 도메인(`auth`, `users`, `courses`, `enrollments`, `attendance`, `admin`, `assignments`, `files`)을 Prisma 저장소로 단계 전환.
 - front 계약을 깨지 않고 API 응답 구조를 유지.
 - 제출/리뷰/첨부/감사로그 흐름을 트랜잭션 단위로 보장.
+
+## 1-1. 현재 스키마 상태 판단
+- 현재 `prisma/schema.prisma`는 generic LMS 예시 성격이 강하다.
+- 지금 runtime 계약의 핵심인 `attendance_scope_policies`, `submission_revisions`, `feedback_attachments`, `file ownership`, `auth refresh sessions`와 1:1 대응하지 않는다.
+- 따라서 기존 스키마를 부분 보수하는 대신, 현재 REST 계약 기준으로 재작성하는 쪽이 맞다.
 
 ## 2. 전환 원칙
 - Repository interface 유지 후 구현체만 교체.
@@ -12,7 +19,9 @@
 
 ## 3. 핵심 테이블 설계 (신규/보강)
 
-### 3.1 사용자/수업 운영
+### 3.1 인증/사용자/수업 운영
+- `auth_refresh_sessions`
+  - `id` (PK), `session_id` (unique), `user_id` FK, `created_at`, `expires_at`, `revoked_at`
 - `users`
   - `id` (PK), `user_id` (unique), `name`, `birth_date`, `default_role`, timestamps
 - `courses`
@@ -77,19 +86,29 @@
   - `course_members`에서 `role=STUDENT`만 capacity 카운트
 
 ## 6. 마이그레이션 단계
-1. 스키마 추가
+1. 스키마 재작성
+- 현재 `schema.prisma`를 계약 우선 모델로 다시 작성한다.
+- generic lesson/quiz 중심 예시 모델은 이번 전환의 기준으로 삼지 않는다.
+
+2. 스키마 추가
 - 위 신규 테이블/인덱스를 Prisma schema에 정의 후 migration 생성.
 
-2. Seed 정렬
+3. Seed 정렬
 - `src/mock-data/front-aligned.mock.ts` 기반 dev seed를 Prisma seed로 이관.
 
-3. Repository 구현
-- `PrismaAssignmentsRepository`, `PrismaFilesRepository`, `PrismaAdminRepository` 추가.
+4. Repository 구현
+- `PrismaUsersRepository`
+- `PrismaCoursesRepository`
+- `PrismaEnrollmentsRepository`
+- `PrismaAttendanceRepository`
+- `PrismaAssignmentsRepository`
+- `PrismaFilesRepository`
+- `PrismaAdminRepository`
 
-4. provider 스위칭
+5. provider 스위칭
 - 환경변수(`DATA_SOURCE=memory|prisma`)로 구현체 전환.
 
-5. 회귀 검증
+6. 회귀 검증
 - 기존 `test/front-back-flow.test.js` 통과 + Prisma 전용 테스트 추가.
 
 ## 7. 완료 정의(DoD)

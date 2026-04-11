@@ -24,13 +24,13 @@ export class UsersService {
     private readonly repository: UsersRepository,
   ) {}
 
-  findByUserId(userId: string): StoredUserRecord | undefined {
-    return this.readUserDatabase().users.find((user) => user.userId === userId);
+  async findByUserId(userId: string): Promise<StoredUserRecord | undefined> {
+    return (await this.readUserDatabase()).users.find((user) => user.userId === userId);
   }
 
-  findByEmail(email: string): StoredUserRecord | undefined {
+  async findByEmail(email: string): Promise<StoredUserRecord | undefined> {
     const normalizedEmail = this.normalizeEmail(email);
-    return this.readUserDatabase().users.find((user) => user.email === normalizedEmail);
+    return (await this.readUserDatabase()).users.find((user) => user.email === normalizedEmail);
   }
 
   verifyPassword(user: StoredUserRecord, password: string): boolean {
@@ -38,12 +38,12 @@ export class UsersService {
     return timingSafeEqual(Buffer.from(user.passwordHash), Buffer.from(derivedHash));
   }
 
-  getMyProfile(userId: string): UserProfileResponse {
-    return this.toUserProfile(this.getUserOrThrow(userId));
+  async getMyProfile(userId: string): Promise<UserProfileResponse> {
+    return this.toUserProfile(await this.getUserOrThrow(userId));
   }
 
-  register(input: CreateUserDto): UserProfileResponse {
-    const database = this.readUserDatabase();
+  async register(input: CreateUserDto): Promise<UserProfileResponse> {
+    const database = await this.readUserDatabase();
     const email = this.normalizeEmail(input.email);
 
     if (database.users.some((user) => user.email === email)) {
@@ -70,12 +70,12 @@ export class UsersService {
     };
 
     database.users.push(created);
-    this.repository.write(database);
+    await this.repository.write(database);
     return this.toUserProfile(created);
   }
 
-  updateMe(userId: string, input: UpdateUserDto): UserProfileResponse {
-    const database = this.readUserDatabase();
+  async updateMe(userId: string, input: UpdateUserDto): Promise<UserProfileResponse> {
+    const database = await this.readUserDatabase();
     const targetIndex = database.users.findIndex((user) => user.userId === userId);
 
     if (targetIndex < 0) {
@@ -102,7 +102,7 @@ export class UsersService {
     }
 
     database.users[targetIndex] = updated;
-    this.repository.write(database);
+    await this.repository.write(database);
     return this.toUserProfile(updated);
   }
 
@@ -133,8 +133,8 @@ export class UsersService {
     };
   }
 
-  private getUserOrThrow(userId: string): StoredUserRecord {
-    const found = this.findByUserId(userId);
+  private async getUserOrThrow(userId: string): Promise<StoredUserRecord> {
+    const found = await this.findByUserId(userId);
 
     if (!found) {
       throw new NotFoundException({
@@ -146,7 +146,7 @@ export class UsersService {
     return found;
   }
 
-  private readUserDatabase(): UsersDatabase {
+  private readUserDatabase(): Promise<UsersDatabase> {
     return this.repository.read();
   }
 

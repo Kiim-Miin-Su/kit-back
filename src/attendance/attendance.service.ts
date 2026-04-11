@@ -24,17 +24,19 @@ export class AttendanceService {
     private readonly coursesService: CoursesService,
   ) {}
 
-  getWorkspace(userId: string): StudentAttendanceWorkspaceResponse {
-    const enrollment = this.getPrimaryEnrollmentOrThrow(userId);
-    const course = this.coursesService.getStoredCourseById(enrollment.courseId);
-    const database = this.readDatabase();
-    const schedules = database.scheduleTemplates.map((template) =>
-      this.buildScheduleResponse({
-        userId,
-        classScope: course.classScope,
-        className: course.title,
-        templateKey: template.key,
-      }),
+  async getWorkspace(userId: string): Promise<StudentAttendanceWorkspaceResponse> {
+    const enrollment = await this.getPrimaryEnrollmentOrThrow(userId);
+    const course = await this.coursesService.getStoredCourseById(enrollment.courseId);
+    const database = await this.readDatabase();
+    const schedules = await Promise.all(
+      database.scheduleTemplates.map((template) =>
+        this.buildScheduleResponse({
+          userId,
+          classScope: course.classScope,
+          className: course.title,
+          templateKey: template.key,
+        }),
+      ),
     );
 
     return {
@@ -48,8 +50,8 @@ export class AttendanceService {
     };
   }
 
-  checkIn(userId: string, scheduleId: string, code: string): AttendanceCheckInResponse {
-    const workspace = this.getWorkspace(userId);
+  async checkIn(userId: string, scheduleId: string, code: string): Promise<AttendanceCheckInResponse> {
+    const workspace = await this.getWorkspace(userId);
     const target = workspace.schedules.find((schedule) => schedule.id === scheduleId);
 
     if (!target) {
@@ -96,7 +98,7 @@ export class AttendanceService {
       });
     }
 
-    const database = this.readDatabase();
+    const database = await this.readDatabase();
     const normalizedCode = code.trim();
 
     if (normalizedCode.length !== database.expectedCodeLength) {
@@ -128,7 +130,7 @@ export class AttendanceService {
       (record) => !(record.userId === userId && record.scheduleKey === scheduleKey),
     );
     database.records.push(nextRecord);
-    this.repository.write(database);
+    await this.repository.write(database);
 
     return {
       scheduleId,
@@ -138,8 +140,8 @@ export class AttendanceService {
     };
   }
 
-  private getPrimaryEnrollmentOrThrow(userId: string) {
-    const enrollment = this.enrollmentsService.getPrimaryEnrollment(userId);
+  private async getPrimaryEnrollmentOrThrow(userId: string) {
+    const enrollment = await this.enrollmentsService.getPrimaryEnrollment(userId);
 
     if (!enrollment) {
       throw new BadRequestException({
@@ -151,7 +153,7 @@ export class AttendanceService {
     return enrollment;
   }
 
-  private buildScheduleResponse({
+  private async buildScheduleResponse({
     userId,
     classScope,
     className,
@@ -161,8 +163,8 @@ export class AttendanceService {
     classScope: string;
     className: string;
     templateKey: string;
-  }): StudentScheduleResponse {
-    const database = this.readDatabase();
+  }): Promise<StudentScheduleResponse> {
+    const database = await this.readDatabase();
     const template = database.scheduleTemplates.find((item) => item.key === templateKey);
 
     if (!template) {
@@ -211,7 +213,7 @@ export class AttendanceService {
     };
   }
 
-  private readDatabase(): AttendanceDatabase {
+  private readDatabase(): Promise<AttendanceDatabase> {
     return this.repository.read();
   }
 

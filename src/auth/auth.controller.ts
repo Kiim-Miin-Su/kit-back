@@ -30,13 +30,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post("sign-in")
-  signIn(@Body() body: SignInDto, @Res({ passthrough: true }) response: CookieResponse) {
+  async signIn(@Body() body: SignInDto, @Res({ passthrough: true }) response: CookieResponse) {
     return this.authService.signIn(body.email, body.password, response);
   }
 
   @Post("sign-out")
   @UseGuards(AuthGuard)
-  signOut(
+  async signOut(
     @Req() request: CookieRequest,
     @Res({ passthrough: true }) response: CookieResponse,
   ) {
@@ -50,7 +50,7 @@ export class AuthController {
   }
 
   @Post("refresh")
-  refresh(
+  async refresh(
     @Req() request: CookieRequest,
     @Res({ passthrough: true }) response: CookieResponse,
   ) {

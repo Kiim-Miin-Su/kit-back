@@ -28,11 +28,11 @@ export class InMemoryUsersRepository implements UsersRepository {
     };
   }
 
-  read(): UsersDatabase {
+  async read(): Promise<UsersDatabase> {
     return this.clone(this.database);
   }
 
-  write(database: UsersDatabase): void {
+  async write(database: UsersDatabase): Promise<void> {
     this.database = this.clone(database);
   }
 

@@ -14,10 +14,10 @@
 
 ## 코드 대조 메모 (2026-04-12)
 - `Auth + Users -> Courses + Enrollments -> Attendance` 로컬 구현은 완료됐다.
-- 현재 저장소는 모두 in-memory 기반이라 로컬 실행과 테스트가 가능하다.
-- 문서 기준 `schema rewrite + seed + PrismaModule scaffold`는 완료됐다.
-- 현재 저장소 계약이 동기식 `read()/write()` 스냅샷 형태라 Prisma 전환의 선행 과제는 repository interface 비동기화다.
-- 다음 우선순위는 `Prisma 저장소 구현체 추가 -> provider switch -> Files 보강 -> Guard 확장`이다.
+- 현재 저장소는 in-memory/prisma 병행 구조로 전환됐다.
+- 문서 기준 `schema rewrite + migration + seed + PrismaModule + provider switch(auth/users/courses/enrollments/attendance)`는 완료됐다.
+- `npm test`, `DATA_SOURCE=prisma npm test` 모두 통과했다.
+- 다음 우선순위는 `Assignments/Admin/Files Prisma 저장소 추가 -> Files 보강 -> Guard 확장`이다.
 
 ## PostgreSQL 전환 참고
 - 참고 문서: `./postgres_reference_2026-04-12.md`

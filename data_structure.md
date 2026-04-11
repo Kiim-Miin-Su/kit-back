@@ -10,12 +10,12 @@
 ## 1-1. 현재 스키마 상태 판단
 - `prisma/schema.prisma`는 현재 REST 계약 기준으로 재작성 완료 상태다.
 - 핵심 도메인인 `attendance_scope_policies`, `submission_revisions`, `feedback_attachments`, `file ownership`, `auth refresh sessions`를 직접 모델링했다.
-- 현재 남은 일은 스키마 재작성 자체가 아니라 Prisma 저장소 구현체와 provider switch다.
+- `prisma/migrations/20260411185600_init` 기준 초기 migration 생성/적용까지 끝났다.
+- 현재 남은 일은 스키마 재작성 자체가 아니라 남은 도메인의 Prisma 저장소 확장이다.
 
 ## 2. 전환 원칙
-- 현재 동기식 snapshot repository는 그대로 두지 않는다.
-- Prisma 전환 전 repository 계약을 `async` 기반의 좁은 도메인 메서드로 재정의한 뒤 구현체를 교체한다.
-- `InMemory*Repository`와 `Prisma*Repository`를 병행하고 provider 스위칭.
+- 현재 repository 계약은 `async read()/write()` 기준으로 정리됐다.
+- `InMemory*Repository`와 `Prisma*Repository`를 병행하고 provider 스위칭한다.
 - 에러코드/검증 규칙은 서비스 레이어에서 유지.
 
 ## 3. 핵심 테이블 설계 (신규/보강)
@@ -91,19 +91,28 @@
 - 현재 `schema.prisma`와 `prisma/seed.ts`를 기준 계약으로 유지하고 migration을 생성한다.
 
 2. Repository 구현
-- `PrismaUsersRepository`
-- `PrismaCoursesRepository`
-- `PrismaEnrollmentsRepository`
-- `PrismaAttendanceRepository`
+- 완료:
+  - `PrismaUsersRepository`
+  - `PrismaCoursesRepository`
+  - `PrismaEnrollmentsRepository`
+  - `PrismaAttendanceRepository`
+  - `PrismaAuthSessionRepository`
+- 남음:
 - `PrismaAssignmentsRepository`
 - `PrismaFilesRepository`
 - `PrismaAdminRepository`
 
 3. provider 스위칭
-- 환경변수(`DATA_SOURCE=memory|prisma`)로 구현체 전환.
+- 완료:
+  - 환경변수(`DATA_SOURCE=memory|prisma`)로 `auth`, `users`, `courses`, `enrollments`, `attendance` 전환
+- 남음:
+  - `assignments`, `files`, `admin`
 
 4. 회귀 검증
-- 기존 `test/front-back-flow.test.js` 통과 + Prisma 전용 테스트 추가.
+- 완료:
+  - 기존 테스트를 `DATA_SOURCE=prisma`로도 통과 확인
+- 남음:
+  - Prisma 전용 분리 테스트 및 seed/reset 헬퍼 정리
 
 ## 7. 완료 정의(DoD)
 - in-memory/prisma 모드 모두 기존 API 계약을 유지.

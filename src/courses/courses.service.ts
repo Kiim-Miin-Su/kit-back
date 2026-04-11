@@ -14,8 +14,8 @@ export class CoursesService {
     private readonly repository: CoursesRepository,
   ) {}
 
-  getCatalog(): CourseCatalogResponse {
-    const database = this.repository.read();
+  async getCatalog(): Promise<CourseCatalogResponse> {
+    const database = await this.repository.read();
     const featured = database.courses.find((course) => course.id === database.featuredCourseId);
 
     if (!featured) {
@@ -34,16 +34,19 @@ export class CoursesService {
     };
   }
 
-  getCourseBySlug(slug: string): PublicCourseDetail {
-    return this.toPublicCourseDetail(this.getStoredCourseBySlug(slug));
+  async getCourseBySlug(slug: string): Promise<PublicCourseDetail> {
+    return this.toPublicCourseDetail(await this.getStoredCourseBySlug(slug));
   }
 
-  getCourseById(courseId: string, enrollmentStatus?: PublicEnrollmentStatus) {
-    return this.toPublicCourseDetail(this.getStoredCourseById(courseId), enrollmentStatus);
+  async getCourseById(
+    courseId: string,
+    enrollmentStatus?: PublicEnrollmentStatus,
+  ): Promise<PublicCourseDetail> {
+    return this.toPublicCourseDetail(await this.getStoredCourseById(courseId), enrollmentStatus);
   }
 
-  getStoredCourseById(courseId: string): StoredCourseRecord {
-    const found = this.repository.read().courses.find((course) => course.id === courseId);
+  async getStoredCourseById(courseId: string): Promise<StoredCourseRecord> {
+    const found = (await this.repository.read()).courses.find((course) => course.id === courseId);
 
     if (!found) {
       throw new NotFoundException({
@@ -55,8 +58,8 @@ export class CoursesService {
     return found;
   }
 
-  getStoredCourseBySlug(slug: string): StoredCourseRecord {
-    const found = this.repository.read().courses.find((course) => course.slug === slug);
+  async getStoredCourseBySlug(slug: string): Promise<StoredCourseRecord> {
+    const found = (await this.repository.read()).courses.find((course) => course.slug === slug);
 
     if (!found) {
       throw new NotFoundException({

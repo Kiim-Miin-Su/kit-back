@@ -49,7 +49,7 @@ function createCookieResponseRecorder() {
 
 test("local runtime: 로그인 -> 내 정보 -> refresh 흐름", async () => {
   const signInRecorder = createCookieResponseRecorder();
-  const signInResponse = authController.signIn(
+  const signInResponse = await authController.signIn(
     {
       email: "student-demo-01@koreait.academy",
       password: "password123",
@@ -64,13 +64,13 @@ test("local runtime: 로그인 -> 내 정보 -> refresh 흐름", async () => {
   const refreshCookie = signInRecorder.readCookie("ai_edu_refresh_token");
   assert.ok(refreshCookie);
 
-  const authenticatedUser = authService.authenticateAccessToken(signInResponse.accessToken);
+  const authenticatedUser = await authService.authenticateAccessToken(signInResponse.accessToken);
   const meResponse = authController.getMe(authenticatedUser);
   assert.equal(meResponse.userId, "student-demo-01");
   assert.equal(meResponse.email, "student-demo-01@koreait.academy");
 
   const refreshRecorder = createCookieResponseRecorder();
-  const refreshResponse = authController.refresh(
+  const refreshResponse = await authController.refresh(
     {
       headers: {
         cookie: `ai_edu_refresh_token=${encodeURIComponent(refreshCookie.value)}`,
@@ -85,7 +85,7 @@ test("local runtime: 로그인 -> 내 정보 -> refresh 흐름", async () => {
 
 test("local runtime: 회원가입 -> 수강신청 -> 내 강의 -> 출석 체크 흐름", async () => {
   const email = `local-student-${Date.now()}@koreait.academy`;
-  const registered = usersController.register({
+  const registered = await usersController.register({
     email,
     password: "password123",
     userName: "로컬 수강생",
@@ -96,29 +96,29 @@ test("local runtime: 회원가입 -> 수강신청 -> 내 강의 -> 출석 체크
   assert.equal(registered.role, "student");
 
   const signInRecorder = createCookieResponseRecorder();
-  const signInResponse = authController.signIn(
+  const signInResponse = await authController.signIn(
     {
       email,
       password: "password123",
     },
     signInRecorder.response,
   );
-  const currentUser = authService.authenticateAccessToken(signInResponse.accessToken);
+  const currentUser = await authService.authenticateAccessToken(signInResponse.accessToken);
 
-  const enrollmentResponse = enrollmentsController.createEnrollment(currentUser, {
+  const enrollmentResponse = await enrollmentsController.createEnrollment(currentUser, {
     courseId: "course-react-state",
   });
   assert.equal(enrollmentResponse.courseId, "course-react-state");
   assert.equal(enrollmentResponse.status, "PENDING");
 
-  const myCoursesResponse = enrollmentsController.getMyCourses(currentUser);
+  const myCoursesResponse = await enrollmentsController.getMyCourses(currentUser);
   assert.ok(
     myCoursesResponse.some(
       (course) => course.id === "course-react-state" && course.enrollmentStatus === "PENDING",
     ),
   );
 
-  const attendanceWorkspace = attendanceController.getWorkspace(currentUser);
+  const attendanceWorkspace = await attendanceController.getWorkspace(currentUser);
   assert.equal(attendanceWorkspace.classScope, "react-상태-설계-패턴");
 
   const targetSchedule = attendanceWorkspace.schedules.find(
@@ -126,7 +126,7 @@ test("local runtime: 회원가입 -> 수강신청 -> 내 강의 -> 출석 체크
   );
   assert.ok(targetSchedule);
 
-  const checkInResponse = attendanceController.checkIn(currentUser, {
+  const checkInResponse = await attendanceController.checkIn(currentUser, {
     scheduleId: targetSchedule.id,
     code: "381924",
   });

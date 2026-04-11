@@ -11,11 +11,11 @@ export class InMemoryCoursesRepository implements CoursesRepository {
     this.database = createFrontAlignedCoursesDatabase();
   }
 
-  read(): CoursesDatabase {
+  async read(): Promise<CoursesDatabase> {
     return this.clone(this.database);
   }
 
-  write(database: CoursesDatabase): void {
+  async write(database: CoursesDatabase): Promise<void> {
     this.database = this.clone(database);
   }
 

@@ -28,11 +28,11 @@ export class EnrollmentsService {
     private readonly usersService: UsersService,
   ) {}
 
-  createEnrollment(userId: string, input: CreateEnrollmentDto): EnrollmentResponse {
-    this.assertUserExists(userId);
+  async createEnrollment(userId: string, input: CreateEnrollmentDto): Promise<EnrollmentResponse> {
+    await this.assertUserExists(userId);
 
-    const database = this.readDatabase();
-    const course = this.coursesService.getStoredCourseById(input.courseId);
+    const database = await this.readDatabase();
+    const course = await this.coursesService.getStoredCourseById(input.courseId);
     const existing = database.enrollments.find(
       (item) => item.userId === userId && item.courseId === input.courseId,
     );
@@ -64,38 +64,42 @@ export class EnrollmentsService {
     };
 
     database.enrollments.push(created);
-    this.repository.write(database);
+    await this.repository.write(database);
     return this.toEnrollmentResponse(created);
   }
 
-  listMyEnrollments(userId: string) {
-    this.assertUserExists(userId);
+  async listMyEnrollments(userId: string) {
+    await this.assertUserExists(userId);
     return {
-      enrollments: this.readDatabase()
-        .enrollments
+      enrollments: (await this.readDatabase()).enrollments
         .filter((item) => item.userId === userId)
         .map((item) => this.toEnrollmentResponse(item)),
     };
   }
 
-  listMyCourses(userId: string) {
-    this.assertUserExists(userId);
+  async listMyCourses(userId: string) {
+    await this.assertUserExists(userId);
 
-    return this.readDatabase()
-      .enrollments
+    return Promise.all(
+      (await this.readDatabase()).enrollments
       .filter((item) => item.userId === userId)
       .map((enrollment) =>
         this.coursesService.getCourseById(
           enrollment.courseId,
           this.toPublicEnrollmentStatus(enrollment.status),
         ),
-      );
+      ),
+    );
   }
 
-  updateEnrollment(userId: string, enrollmentId: string, input: UpdateEnrollmentDto) {
-    this.assertUserExists(userId);
+  async updateEnrollment(
+    userId: string,
+    enrollmentId: string,
+    input: UpdateEnrollmentDto,
+  ) {
+    await this.assertUserExists(userId);
 
-    const database = this.readDatabase();
+    const database = await this.readDatabase();
     const targetIndex = database.enrollments.findIndex(
       (item) => item.enrollmentId === enrollmentId,
     );
@@ -124,14 +128,14 @@ export class EnrollmentsService {
     };
 
     database.enrollments[targetIndex] = updated;
-    this.repository.write(database);
+    await this.repository.write(database);
     return this.toEnrollmentResponse(updated);
   }
 
-  deleteEnrollment(userId: string, enrollmentId: string) {
-    this.assertUserExists(userId);
+  async deleteEnrollment(userId: string, enrollmentId: string) {
+    await this.assertUserExists(userId);
 
-    const database = this.readDatabase();
+    const database = await this.readDatabase();
     const target = database.enrollments.find((item) => item.enrollmentId === enrollmentId);
 
     if (!target) {
@@ -149,23 +153,23 @@ export class EnrollmentsService {
     }
 
     database.enrollments = database.enrollments.filter((item) => item.enrollmentId !== enrollmentId);
-    this.repository.write(database);
+    await this.repository.write(database);
     return {
       success: true,
     };
   }
 
-  getPrimaryEnrollment(userId: string) {
-    return this.readDatabase().enrollments.find(
+  async getPrimaryEnrollment(userId: string) {
+    return (await this.readDatabase()).enrollments.find(
       (item) => item.userId === userId && (item.status === "ACTIVE" || item.status === "PENDING"),
     );
   }
 
-  private assertUserExists(userId: string) {
-    this.usersService.getMyProfile(userId);
+  private async assertUserExists(userId: string) {
+    await this.usersService.getMyProfile(userId);
   }
 
-  private readDatabase(): EnrollmentsDatabase {
+  private readDatabase(): Promise<EnrollmentsDatabase> {
     return this.repository.read();
   }
 

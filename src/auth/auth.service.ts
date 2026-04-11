@@ -47,8 +47,8 @@ export class AuthService {
     private readonly sessionRepository: AuthSessionRepository,
   ) {}
 
-  signIn(email: string, password: string, response: CookieResponse): AuthSessionResponse {
-    const user = this.usersService.findByEmail(email);
+  async signIn(email: string, password: string, response: CookieResponse): Promise<AuthSessionResponse> {
+    const user = await this.usersService.findByEmail(email);
 
     if (!user) {
       throw new UnauthorizedException({
@@ -67,13 +67,13 @@ export class AuthService {
     return this.issueSession(user, response);
   }
 
-  signOut(request: CookieRequest, response: CookieResponse) {
+  async signOut(request: CookieRequest, response: CookieResponse) {
     const refreshToken = this.readRefreshTokenFromRequest(request);
 
     if (refreshToken) {
       try {
         const payload = this.tokenCodecService.verifyRefreshToken(refreshToken);
-        this.revokeSession(payload.sessionId);
+        await this.revokeSession(payload.sessionId);
       } catch {
         // ignore invalid refresh token on logout
       }
@@ -87,7 +87,7 @@ export class AuthService {
     return user;
   }
 
-  refresh(request: CookieRequest, response: CookieResponse) {
+  async refresh(request: CookieRequest, response: CookieResponse) {
     const refreshToken = this.readRefreshTokenFromRequest(request);
 
     if (!refreshToken) {
@@ -98,8 +98,8 @@ export class AuthService {
     }
 
     const payload = this.tokenCodecService.verifyRefreshToken(refreshToken);
-    const session = this.getActiveSession(payload.sessionId);
-    const user = this.usersService.findByUserId(session.userId);
+    const session = await this.getActiveSession(payload.sessionId);
+    const user = await this.usersService.findByUserId(session.userId);
 
     if (!user) {
       throw new UnauthorizedException({
@@ -108,13 +108,13 @@ export class AuthService {
       });
     }
 
-    this.revokeSession(session.sessionId);
+    await this.revokeSession(session.sessionId);
     return this.issueSession(user, response);
   }
 
-  authenticateAccessToken(token: string): AuthenticatedRequestUser {
+  async authenticateAccessToken(token: string): Promise<AuthenticatedRequestUser> {
     const payload = this.tokenCodecService.verifyAccessToken(token);
-    const user = this.usersService.findByUserId(payload.sub);
+    const user = await this.usersService.findByUserId(payload.sub);
 
     if (!user) {
       throw new UnauthorizedException({
@@ -126,11 +126,14 @@ export class AuthService {
     return this.toAuthenticatedUser(user);
   }
 
-  private issueSession(user: StoredUserRecord, response: CookieResponse): AuthSessionResponse {
+  private async issueSession(
+    user: StoredUserRecord,
+    response: CookieResponse,
+  ): Promise<AuthSessionResponse> {
     const sessionId = randomUUID();
     const createdAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_SECONDS * 1000).toISOString();
-    const database = this.sessionRepository.read();
+    const database = await this.sessionRepository.read();
 
     database.sessions.push({
       sessionId,
@@ -138,7 +141,7 @@ export class AuthService {
       createdAt,
       expiresAt,
     });
-    this.sessionRepository.write(database);
+    await this.sessionRepository.write(database);
 
     const accessToken = this.tokenCodecService.signAccessToken(
       {
@@ -209,8 +212,10 @@ export class AuthService {
     });
   }
 
-  private getActiveSession(sessionId: string): StoredRefreshSession {
-    const session = this.sessionRepository.read().sessions.find((item) => item.sessionId === sessionId);
+  private async getActiveSession(sessionId: string): Promise<StoredRefreshSession> {
+    const session = (await this.sessionRepository.read()).sessions.find(
+      (item) => item.sessionId === sessionId,
+    );
 
     if (!session || session.revokedAt) {
       throw new UnauthorizedException({
@@ -229,8 +234,8 @@ export class AuthService {
     return session;
   }
 
-  private revokeSession(sessionId: string) {
-    const database = this.sessionRepository.read();
+  private async revokeSession(sessionId: string) {
+    const database = await this.sessionRepository.read();
     const sessionIndex = database.sessions.findIndex((item) => item.sessionId === sessionId);
 
     if (sessionIndex < 0) {
@@ -241,7 +246,7 @@ export class AuthService {
       ...database.sessions[sessionIndex],
       revokedAt: new Date().toISOString(),
     };
-    this.sessionRepository.write(database);
+    await this.sessionRepository.write(database);
   }
 
   private toAuthenticatedUser(user: StoredUserRecord): AuthenticatedRequestUser {

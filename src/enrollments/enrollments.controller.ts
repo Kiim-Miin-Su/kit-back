@@ -21,7 +21,7 @@ export class EnrollmentsController {
 
   @Post("enrollments")
   @UseGuards(AuthGuard)
-  createEnrollment(
+  async createEnrollment(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Body() body: CreateEnrollmentDto,
   ) {
@@ -30,19 +30,19 @@ export class EnrollmentsController {
 
   @Get("me/enrollments")
   @UseGuards(AuthGuard)
-  getMyEnrollments(@CurrentUser() user: AuthenticatedRequestUser) {
+  async getMyEnrollments(@CurrentUser() user: AuthenticatedRequestUser) {
     return this.enrollmentsService.listMyEnrollments(user.userId);
   }
 
   @Get("me/courses")
   @UseGuards(AuthGuard)
-  getMyCourses(@CurrentUser() user: AuthenticatedRequestUser) {
+  async getMyCourses(@CurrentUser() user: AuthenticatedRequestUser) {
     return this.enrollmentsService.listMyCourses(user.userId);
   }
 
   @Patch("enrollments/:enrollmentId")
   @UseGuards(AuthGuard)
-  updateEnrollment(
+  async updateEnrollment(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Param("enrollmentId") enrollmentId: string,
     @Body() body: UpdateEnrollmentDto,
@@ -52,7 +52,7 @@ export class EnrollmentsController {
 
   @Delete("enrollments/:enrollmentId")
   @UseGuards(AuthGuard)
-  deleteEnrollment(
+  async deleteEnrollment(
     @CurrentUser() user: AuthenticatedRequestUser,
     @Param("enrollmentId") enrollmentId: string,
   ) {

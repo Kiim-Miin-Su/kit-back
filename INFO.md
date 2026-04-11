@@ -174,5 +174,6 @@
 ## 8. 참고 문서
 - 상세 계약: `./progress/FRONT_HANDOFF_2026-04-09.md`
 - 최신 계획: `./progress/progress_02.md`
+- PostgreSQL 레퍼런스 정리: `./progress/postgres_reference_2026-04-12.md`
 - 프론트 구조: `../front/progress/INFO.md`
 - 프론트 아키텍처 핸드오프: `../front/progress/architecture.md`

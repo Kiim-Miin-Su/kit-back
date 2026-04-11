@@ -15,7 +15,14 @@
 ## 코드 대조 메모 (2026-04-12)
 - `Auth + Users -> Courses + Enrollments -> Attendance` 로컬 구현은 완료됐다.
 - 현재 저장소는 모두 in-memory 기반이라 로컬 실행과 테스트가 가능하다.
-- 다음 우선순위는 `Files 보강 -> Guard 확장 -> Prisma 전환`이다.
+- 다음 우선순위는 `문서 기준 schema rewrite -> Prisma 전환 -> Files 보강 -> Guard 확장`이다.
+
+## PostgreSQL 전환 참고
+- 참고 문서: `./postgres_reference_2026-04-12.md`
+- 결정:
+  - DB는 PostgreSQL
+  - ORM은 Prisma 유지
+  - 현재 `schema.prisma`는 generic 예시 성격이 강하므로 계약 우선으로 재작성한다.
 
 ---
 

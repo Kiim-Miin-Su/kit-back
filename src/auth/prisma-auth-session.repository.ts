@@ -3,6 +3,14 @@ import { PrismaService } from "../prisma/prisma.service";
 import { AuthSessionRepository } from "./auth-session.repository";
 import { AuthSessionDatabase } from "./auth.types";
 
+type PrismaAuthRefreshSessionRow = {
+  sessionId: string;
+  userId: string;
+  createdAt: Date;
+  expiresAt: Date;
+  revokedAt: Date | null;
+};
+
 @Injectable()
 export class PrismaAuthSessionRepository implements AuthSessionRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -13,7 +21,7 @@ export class PrismaAuthSessionRepository implements AuthSessionRepository {
     });
 
     return {
-      sessions: sessions.map((session) => ({
+      sessions: sessions.map((session: PrismaAuthRefreshSessionRow) => ({
         sessionId: session.sessionId,
         userId: session.userId,
         createdAt: session.createdAt.toISOString(),

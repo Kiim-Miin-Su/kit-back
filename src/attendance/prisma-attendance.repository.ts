@@ -2,7 +2,17 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { createFrontAlignedAttendanceDatabase } from "../mock-data/front-aligned.mock";
 import { AttendanceRepository } from "./attendance.repository";
-import { AttendanceDatabase } from "./attendance.types";
+import { AttendanceDatabase, AttendanceStatus } from "./attendance.types";
+
+type AttendanceRecordWithSchedule = {
+  userId: string;
+  attendanceStatus: string;
+  checkedAt: Date | null;
+  schedule: {
+    scheduleId: string;
+    checkInCode: string | null;
+  };
+};
 
 @Injectable()
 export class PrismaAttendanceRepository implements AttendanceRepository {
@@ -28,10 +38,10 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     return {
       ...base,
       checkInCodeByScheduleKey,
-      records: records.map((record) => ({
+      records: records.map((record: AttendanceRecordWithSchedule) => ({
         userId: record.userId,
         scheduleKey: this.normalizeScheduleKey(record.schedule.scheduleId),
-        attendanceStatus: record.attendanceStatus,
+        attendanceStatus: this.toAttendanceStatus(record.attendanceStatus),
         checkedAt: record.checkedAt?.toISOString(),
       })),
     };
@@ -89,5 +99,13 @@ export class PrismaAttendanceRepository implements AttendanceRepository {
     }
 
     return scheduleKey;
+  }
+
+  private toAttendanceStatus(status: string): AttendanceStatus {
+    if (status === "CHECKED_IN" || status === "LATE" || status === "ABSENT") {
+      return status;
+    }
+
+    return "NOT_CHECKED_IN";
   }
 }

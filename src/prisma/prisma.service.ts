@@ -1,13 +1,18 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
+import { isPrismaDataSource } from "../common/data-source";
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
-    await this.$connect();
+    if (isPrismaDataSource()) {
+      await this.$connect();
+    }
   }
 
   async onModuleDestroy() {
-    await this.$disconnect();
+    if (isPrismaDataSource()) {
+      await this.$disconnect();
+    }
   }
 }

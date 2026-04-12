@@ -4,6 +4,19 @@ import { PrismaService } from "../prisma/prisma.service";
 import { UsersRepository } from "./users.repository";
 import { AppUserRole, StoredUserRecord, UsersDatabase } from "./users.types";
 
+type PrismaUserRow = {
+  userId: string;
+  email: string;
+  passwordHash: string;
+  passwordSalt: string;
+  name: string;
+  birthDate: string | null;
+  title: string;
+  role: string;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 @Injectable()
 export class PrismaUsersRepository implements UsersRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -14,7 +27,7 @@ export class PrismaUsersRepository implements UsersRepository {
     });
 
     return {
-      users: users.map((user) => ({
+      users: users.map((user: PrismaUserRow): StoredUserRecord => ({
         userId: user.userId,
         email: user.email,
         passwordHash: user.passwordHash,

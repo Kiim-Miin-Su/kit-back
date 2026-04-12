@@ -1,7 +1,17 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { EnrollmentsRepository } from "./enrollments.repository";
-import { EnrollmentsDatabase } from "./enrollments.types";
+import { EnrollmentStatus, EnrollmentsDatabase } from "./enrollments.types";
+
+type PrismaEnrollmentRow = {
+  enrollmentId: string;
+  courseId: string;
+  userId: string;
+  status: string;
+  enrolledAt: Date;
+  updatedAt: Date;
+  completedAt: Date | null;
+};
 
 @Injectable()
 export class PrismaEnrollmentsRepository implements EnrollmentsRepository {
@@ -13,11 +23,11 @@ export class PrismaEnrollmentsRepository implements EnrollmentsRepository {
     });
 
     return {
-      enrollments: enrollments.map((enrollment) => ({
+      enrollments: enrollments.map((enrollment: PrismaEnrollmentRow) => ({
         enrollmentId: enrollment.enrollmentId,
         courseId: enrollment.courseId,
         userId: enrollment.userId,
-        status: enrollment.status,
+        status: this.toEnrollmentStatus(enrollment.status),
         enrolledAt: enrollment.enrolledAt.toISOString(),
         updatedAt: enrollment.updatedAt.toISOString(),
         completedAt: enrollment.completedAt?.toISOString(),
@@ -55,5 +65,13 @@ export class PrismaEnrollmentsRepository implements EnrollmentsRepository {
         }),
       ),
     ]);
+  }
+
+  private toEnrollmentStatus(status: string): EnrollmentStatus {
+    if (status === "ACTIVE" || status === "COMPLETED") {
+      return status;
+    }
+
+    return "PENDING";
   }
 }

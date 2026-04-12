@@ -130,3 +130,4 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/ai_edu npm run test:p
 - PostgreSQL 레퍼런스: `progress/postgres_reference_2026-04-12.md`
 - 프론트 상세 핸드오프: `progress/FRONT_HANDOFF_2026-04-09.md`
 - 프론트 아키텍처 문서: `../front/progress/architecture.md`
+- Azure 배포 문서: `AZURE_DEPLOY.md`

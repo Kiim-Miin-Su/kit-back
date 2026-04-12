@@ -101,8 +101,8 @@ interface UserCredential {
 - 이메일 미존재 → `{ code: "USER_NOT_FOUND" }` (401)
 - 비밀번호 불일치 → `{ code: "INVALID_PASSWORD" }` (401)
 
-**JWT 설정**:
-- secret: `process.env.JWT_SECRET ?? "dev-jwt-secret-do-not-use-in-production"`
+**토큰 설정**:
+- secret: `process.env.AUTH_TOKEN_SECRET ?? "local-dev-auth-token-secret-change-me"`
 - accessToken 만료: 1h
 - refreshToken 만료: 7d (인메모리 Map 저장)
 

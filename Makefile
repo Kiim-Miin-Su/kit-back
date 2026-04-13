@@ -1,16 +1,14 @@
-.PHONY: setup env env-local run dev dev-d logs stop clean test seed shell studio migrate reset
+.PHONY: setup dev dev-d logs stop clean test seed shell studio migrate reset help
 
-setup:        ## 사전 요구사항 점검 + compose용 .env 생성
-	bash ./scripts/setup-dev.sh --preset=compose
+# ── 최초 설정 ──────────────────────────────────────────
+setup:         ## [첫 실행] Docker 확인 + .env 생성 + 서버 시작 + seed
+	bash setup.sh
 
-env:          ## compose용 .env 생성
-	node ./scripts/init-env.mjs --preset=compose
+setup-no-seed: ## [첫 실행] seed 없이 설정
+	bash setup.sh --no-seed
 
-env-local:    ## 로컬 Node.js 실행용 .env 생성
-	node ./scripts/init-env.mjs --preset=local-node
-
-run:          ## clone 직후 실행용: setup 후 docker compose up
-	bash ./scripts/run-dev.sh
+setup-install: ## [첫 실행] Docker 자동 설치 포함 (macOS/Linux)
+	bash setup.sh --install
 
 # ── 개발 환경 ──────────────────────────────────────────
 dev:          ## 개발 서버 실행 (foreground, 핫 리로드)
@@ -51,4 +49,4 @@ shell:        ## back 컨테이너 쉘 진입
 
 help:         ## 사용 가능한 명령어 목록
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	  awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'

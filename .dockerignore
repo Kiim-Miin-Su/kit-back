@@ -11,3 +11,6 @@ coverage
 test
 *.tsbuildinfo
 .DS_Store
+.env
+.env.*
+!.env.example

@@ -1,4 +1,4 @@
-.PHONY: setup dev dev-d logs stop clean test seed shell studio adminer migrate reset psql help
+.PHONY: setup dev dev-d logs logs-front stop clean test seed shell studio adminer migrate reset psql help
 
 # ── 최초 설정 ──────────────────────────────────────────
 setup:         ## [첫 실행] Docker 확인 + .env 생성 + 서버 시작 + seed
@@ -20,10 +20,13 @@ dev-d:        ## 개발 서버 백그라운드 실행
 logs:         ## back 컨테이너 로그 스트리밍
 	docker compose logs -f back
 
-stop:         ## 컨테이너 중지 (볼륨 유지)
+logs-front:   ## front 컨테이너 로그 스트리밍
+	docker compose logs -f front
+
+stop:         ## 전체 컨테이너 중지 (front 포함, 볼륨 유지)
 	docker compose down
 
-clean:        ## 컨테이너 + 볼륨 전체 삭제 (DB 초기화)
+clean:        ## 전체 컨테이너 + 볼륨 삭제 (DB 초기화, front 포함)
 	docker compose down -v
 
 reset:        ## DB 초기화 후 재시작

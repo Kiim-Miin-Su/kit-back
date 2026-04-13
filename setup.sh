@@ -176,6 +176,8 @@ POSTGRES_HOST_PORT=5432
 
 RESOLVED_BACK_HOST_PORT="$(resolve_port "${BACK_HOST_PORT}")"
 RESOLVED_POSTGRES_HOST_PORT="$(resolve_port "${POSTGRES_HOST_PORT}")"
+FRONT_HOST_PORT=3000
+RESOLVED_FRONT_HOST_PORT="$(resolve_port "${FRONT_HOST_PORT}")"
 
 if [ "${RESOLVED_BACK_HOST_PORT}" != "${BACK_HOST_PORT}" ]; then
   warn "HOST_PORT ${BACK_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_BACK_HOST_PORT}로 변경"
@@ -185,9 +187,15 @@ if [ "${RESOLVED_POSTGRES_HOST_PORT}" != "${POSTGRES_HOST_PORT}" ]; then
   warn "POSTGRES_HOST_PORT ${POSTGRES_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_POSTGRES_HOST_PORT}로 변경"
 fi
 
+if [ "${RESOLVED_FRONT_HOST_PORT}" != "${FRONT_HOST_PORT}" ]; then
+  warn "FRONT_HOST_PORT ${FRONT_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_FRONT_HOST_PORT}로 변경"
+fi
+
 set_env_var "${ENV_FILE}" "HOST_PORT" "${RESOLVED_BACK_HOST_PORT}"
 set_env_var "${ENV_FILE}" "POSTGRES_HOST_PORT" "${RESOLVED_POSTGRES_HOST_PORT}"
-success "호스트 포트 확인 완료 (back=${RESOLVED_BACK_HOST_PORT}, postgres=${RESOLVED_POSTGRES_HOST_PORT})"
+set_env_var "${ENV_FILE}" "FRONT_HOST_PORT" "${RESOLVED_FRONT_HOST_PORT}"
+set_env_var "${ENV_FILE}" "CORS_ORIGIN" "http://localhost:${RESOLVED_FRONT_HOST_PORT}"
+success "호스트 포트 확인 완료 (back=${RESOLVED_BACK_HOST_PORT}, postgres=${RESOLVED_POSTGRES_HOST_PORT}, front=${RESOLVED_FRONT_HOST_PORT})"
 
 # compose 커맨드 선택
 if docker compose version &>/dev/null 2>&1; then
@@ -199,9 +207,15 @@ fi
 # ══════════════════════════════════════════════════════════
 # STEP 2. 컨테이너 시작
 # ══════════════════════════════════════════════════════════
-step "컨테이너 시작 (postgres + back)"
-info "최초 실행 시 node:20-alpine 이미지 다운로드로 수 분 소요될 수 있습니다."
-$COMPOSE up -d
+if [ "${START_FRONT}" = true ]; then
+  step "컨테이너 시작 (postgres + back + front + adminer + studio)"
+  info "최초 실행 시 node:20-alpine 이미지 다운로드로 수 분 소요될 수 있습니다."
+  $COMPOSE up -d
+else
+  step "컨테이너 시작 (postgres + back, front 제외)"
+  info "최초 실행 시 node:20-alpine 이미지 다운로드로 수 분 소요될 수 있습니다."
+  $COMPOSE up -d postgres back adminer studio
+fi
 
 # ══════════════════════════════════════════════════════════
 # STEP 3. 서버 준비 대기 (healthcheck 기반)
@@ -257,6 +271,47 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════
+# STEP 5. 프론트엔드 준비 대기 (back compose에 포함된 front)
+# ══════════════════════════════════════════════════════════
+if [ "${START_FRONT}" = true ]; then
+  step "프론트엔드 준비 대기 (최대 3분)"
+  info "Next.js dev 서버 시작 중..."
+
+  MAX_FRONT_WAIT=180
+  ELAPSED=0
+  SPIN=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  SPIN_IDX=0
+
+  while true; do
+    if curl -sf "http://localhost:${RESOLVED_FRONT_HOST_PORT}" >/dev/null 2>&1 || \
+       (command -v python3 >/dev/null 2>&1 && python3 -c "
+import urllib.request, sys
+try:
+    urllib.request.urlopen('http://localhost:${RESOLVED_FRONT_HOST_PORT}', timeout=3)
+    sys.exit(0)
+except:
+    sys.exit(1)
+" 2>/dev/null); then
+      echo ""
+      success "프론트엔드가 준비됐습니다!"
+      break
+    fi
+
+    if [ $ELAPSED -ge $MAX_FRONT_WAIT ]; then
+      echo ""
+      warn "프론트엔드 시작 시간 초과 — 아직 빌드 중일 수 있습니다."
+      warn "로그 확인: make logs-front"
+      break
+    fi
+
+    printf "\r  ${SPIN[$SPIN_IDX]} 대기 중... (${ELAPSED}s / ${MAX_FRONT_WAIT}s)"
+    SPIN_IDX=$(( (SPIN_IDX + 1) % ${#SPIN[@]} ))
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+  done
+fi
+
+# ══════════════════════════════════════════════════════════
 # 완료
 # ══════════════════════════════════════════════════════════
 echo ""
@@ -265,12 +320,22 @@ RESOLVED_ADMINER_PORT="$(read_env_var "${ENV_FILE}" "ADMINER_PORT")"
 
 echo -e "${GREEN}${BOLD}✓ 설정 완료!${RESET}"
 echo ""
+if [ "${START_FRONT}" = true ]; then
 echo "  ┌─ 웹 서비스 ───────────────────────────────────────────"
+echo "  │  프론트엔드      → http://localhost:${RESOLVED_FRONT_HOST_PORT}"
 echo "  │  REST API        → http://localhost:${RESOLVED_BACK_HOST_PORT}"
 echo "  │  Swagger UI      → http://localhost:${RESOLVED_BACK_HOST_PORT}/api-docs"
 echo "  │  Adminer (DB웹)  → http://localhost:${RESOLVED_ADMINER_PORT}"
 echo "  │  Prisma Studio   → http://localhost:5555"
 echo "  └────────────────────────────────────────────────────"
+else
+echo "  ┌─ 웹 서비스 (front 제외) ──────────────────────────────"
+echo "  │  REST API        → http://localhost:${RESOLVED_BACK_HOST_PORT}"
+echo "  │  Swagger UI      → http://localhost:${RESOLVED_BACK_HOST_PORT}/api-docs"
+echo "  │  Adminer (DB웹)  → http://localhost:${RESOLVED_ADMINER_PORT}"
+echo "  │  Prisma Studio   → http://localhost:5555"
+echo "  └────────────────────────────────────────────────────"
+fi
 echo ""
 echo "  Adminer 접속 정보 (Server: postgres, PW: 없음, DB: ai_edu):"
 echo "    http://localhost:${RESOLVED_ADMINER_PORT}"
@@ -286,28 +351,10 @@ echo "    학생     → student-demo-01@koreait.academy / password123"
 echo "    강사     → instructor-dev-01@koreait.academy / password123"
 echo "    관리자   → admin-root@koreait.academy / password123"
 echo ""
-
-if [ "${START_FRONT}" = true ] && [ -d "${FRONT_DIR}" ] && [ -f "${FRONT_DIR}/setup.sh" ]; then
-  step "프론트엔드 시작"
-  info "sibling front 디렉터리 발견: ${FRONT_DIR}"
-  (
-    cd "${FRONT_DIR}" &&
-    bash setup.sh --skip-back-bootstrap ${INSTALL_FLAG}
-  )
-  success "프론트엔드 준비 완료"
-  echo ""
-  echo "  전체 서비스 주소:"
-  echo "    프론트엔드 → front/.env의 HOST_PORT 참고"
-  echo "    백엔드 API → http://localhost:${RESOLVED_BACK_HOST_PORT}"
-  echo ""
-elif [ "${START_FRONT}" = true ]; then
-  warn "sibling front 디렉터리를 찾지 못해 back만 실행했습니다."
-  warn "front도 함께 실행하려면 같은 부모 디렉터리에 front 저장소를 둔 뒤 다시 실행하세요."
-  echo ""
-fi
-
 echo "  이후 실행:"
-echo "    make dev     # 서버 재시작"
-echo "    make logs    # 로그 보기"
-echo "    make help    # 전체 명령어 목록"
+echo "    make dev          # 전체 서버 재시작"
+echo "    make logs         # back 로그"
+echo "    make logs-front   # front 로그"
+echo "    make stop         # 전체 중지 (front 포함)"
+echo "    make help         # 전체 명령어 목록"
 echo ""

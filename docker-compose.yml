@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ai_edu
+      POSTGRES_USER: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_edu"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  back:
+    image: node:20-alpine
+    working_dir: /workspace
+    command: >
+      sh -c "npm install &&
+             npx prisma generate &&
+             npx prisma migrate deploy &&
+             npm run start:dev"
+    environment:
+      PORT: 4000
+      DATA_SOURCE: prisma
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres@postgres:5432/ai_edu}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "300"
+    volumes:
+      - .:/workspace
+      - node_modules:/workspace/node_modules
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  node_modules:

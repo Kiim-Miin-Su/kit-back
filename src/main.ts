@@ -1,11 +1,13 @@
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import { readCorsOrigin, validateProductionRuntimeEnv } from "./common/runtime-env";
 import { AppModule } from "./app.module";
 
 async function bootstrap() {
+  validateProductionRuntimeEnv();
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: process.env.CORS_ORIGIN ?? "http://localhost:3000",
+    origin: readCorsOrigin(),
     credentials: true,
   });
   app.useGlobalPipes(

@@ -14,7 +14,7 @@
   - 인증/DB/문서화 구성을 처음부터 분리해 두는 패턴
 - 우리 프로젝트에 적용할 점:
   - `PrismaService` / `PrismaModule` 도입
-  - `docker-compose.db.yml` 또는 동등한 dev DB 실행 문서
+  - `docker-compose.yml` 기반 dev DB 실행 문서
   - `migrate dev`, `migrate deploy`, `generate`, `seed` 스크립트 정리
 
 2. `prisma/blog-backend-rest-api-nestjs-prisma`

@@ -65,8 +65,8 @@
   - 누락된 운영용 course/file FK를 보강해서 실제 seed 가능 상태로 정리
 - `src/prisma`
   - `PrismaService`, `PrismaModule` 추가
-- `docker-compose.db.yml`
-  - 로컬 PostgreSQL 16 개발 컨테이너
+- `docker-compose.yml`
+  - 로컬 PostgreSQL 16 + NestJS 개발 컨테이너
  - `src/common/data-source.ts`
    - `DATA_SOURCE=memory|prisma` 스위칭 헬퍼
  - `src/*/prisma-*.repository.ts`
@@ -192,11 +192,9 @@
 - `INVALID_ATTENDANCE_SCOPE_POLICY`
 
 ## 8. 참고 문서
-- 상세 계약: `./progress/FRONT_HANDOFF_2026-04-09.md`
-- 최신 계획: `./progress/progress_02.md`
-- PostgreSQL 레퍼런스 정리: `./progress/postgres_reference_2026-04-12.md`
-- 프론트 구조: `../front/progress/INFO.md`
-- 프론트 아키텍처 핸드오프: `../front/progress/architecture.md`
+- 상세 계약: `./FRONT_HANDOFF_2026-04-09.md`
+- 최신 계획: `./progress_02.md`
+- PostgreSQL 레퍼런스 정리: `./postgres_reference_2026-04-12.md`
 
 ## 9. 검증 메모 (2026-04-12)
 - `npm run build` 통과

@@ -1,11 +1,11 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { readAuthTokenSecret } from "../common/runtime-env";
 import { AccessTokenPayload, RefreshTokenPayload } from "./auth.types";
 
 @Injectable()
 export class TokenCodecService {
-  private readonly secret =
-    process.env.AUTH_TOKEN_SECRET ?? "local-dev-auth-token-secret-change-me";
+  private readonly secret = readAuthTokenSecret();
 
   signAccessToken(payload: Omit<AccessTokenPayload, "type" | "exp">, ttlSeconds: number) {
     return this.sign({

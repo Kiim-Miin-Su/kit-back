@@ -97,15 +97,46 @@ PY
   return 1
 }
 
-find_available_port() {
-  local start_port="$1"
-  local port="${start_port}"
+# 해당 포트를 점유 중인 Docker 컨테이너 이름을 반환 (없으면 빈 문자열)
+get_docker_container_on_port() {
+  local port="$1"
+  docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null \
+    | awk -v p="${port}" '$0 ~ ":" p "->" { match($0, /^[^\t]+/); print substr($0, RSTART, RLENGTH) }' \
+    | head -n 1
+}
 
-  while is_port_in_use "${port}"; do
-    port=$((port + 1))
+# 포트를 점유한 Docker 컨테이너가 있으면 강제 제거 후 0 반환, 없으면 1 반환
+free_port_if_docker() {
+  local port="$1"
+  local container
+  container="$(get_docker_container_on_port "${port}")"
+  if [ -n "${container}" ]; then
+    warn "포트 ${port}를 사용 중인 Docker 컨테이너: ${container}"
+    info "컨테이너를 강제 제거합니다: ${container}"
+    docker rm -f "${container}" >/dev/null 2>&1
+    success "컨테이너 제거 완료 → 포트 ${port} 확보"
+    return 0
+  fi
+  return 1
+}
+
+# 포트 확보: Docker 컨테이너이면 제거 후 원래 포트 사용, 아니면 다음 빈 포트 탐색
+resolve_port() {
+  local port="$1"
+  if ! is_port_in_use "${port}"; then
+    printf "%s" "${port}"
+    return
+  fi
+  if free_port_if_docker "${port}"; then
+    printf "%s" "${port}"
+    return
+  fi
+  # 비-Docker 프로세스 점유 → 다음 빈 포트 탐색
+  local next="${port}"
+  while is_port_in_use "${next}"; do
+    next=$((next + 1))
   done
-
-  printf "%s" "${port}"
+  printf "%s" "${next}"
 }
 
 # ── 옵션 파싱 ─────────────────────────────────────────────
@@ -144,15 +175,15 @@ POSTGRES_HOST_PORT="$(read_env_var "${ENV_FILE}" "POSTGRES_HOST_PORT")"
 [ -n "${BACK_HOST_PORT}" ] || BACK_HOST_PORT=4000
 [ -n "${POSTGRES_HOST_PORT}" ] || POSTGRES_HOST_PORT=5432
 
-RESOLVED_BACK_HOST_PORT="$(find_available_port "${BACK_HOST_PORT}")"
-RESOLVED_POSTGRES_HOST_PORT="$(find_available_port "${POSTGRES_HOST_PORT}")"
+RESOLVED_BACK_HOST_PORT="$(resolve_port "${BACK_HOST_PORT}")"
+RESOLVED_POSTGRES_HOST_PORT="$(resolve_port "${POSTGRES_HOST_PORT}")"
 
 if [ "${RESOLVED_BACK_HOST_PORT}" != "${BACK_HOST_PORT}" ]; then
-  warn "HOST_PORT ${BACK_HOST_PORT} 사용 중 → ${RESOLVED_BACK_HOST_PORT}로 변경"
+  warn "HOST_PORT ${BACK_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_BACK_HOST_PORT}로 변경"
 fi
 
 if [ "${RESOLVED_POSTGRES_HOST_PORT}" != "${POSTGRES_HOST_PORT}" ]; then
-  warn "POSTGRES_HOST_PORT ${POSTGRES_HOST_PORT} 사용 중 → ${RESOLVED_POSTGRES_HOST_PORT}로 변경"
+  warn "POSTGRES_HOST_PORT ${POSTGRES_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_POSTGRES_HOST_PORT}로 변경"
 fi
 
 set_env_var "${ENV_FILE}" "HOST_PORT" "${RESOLVED_BACK_HOST_PORT}"

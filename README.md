@@ -108,7 +108,9 @@ Windows:
 1. Docker 설치 및 실행 여부 확인
 2. `psql` 클라이언트 설치 여부 확인
 3. `.env` 파일 자동 생성 (없을 경우 `.env.example` 기반으로 생성)
-4. 이미 사용 중인 `4000`, `5432`를 피해서 빈 호스트 포트 자동 선택
+4. 포트 충돌 자동 해결:
+   - **Docker 컨테이너**가 점유 중이면 해당 컨테이너를 강제 제거하고 기본 포트 사용
+   - **다른 프로세스**가 점유 중이면 빈 포트를 자동으로 탐색해 사용
 5. PostgreSQL + NestJS 컨테이너 시작
 6. 컨테이너 내부: `npm install` → `prisma generate` → `prisma migrate deploy` → 서버 시작
 7. 서버 헬스체크 통과 대기 (최대 3분)
@@ -129,12 +131,15 @@ PostgreSQL → localhost:5433
 psql -h localhost -p 5433 -U postgres -d ai_edu
 ```
 
-기존 `4000`, `5432`가 이미 사용 중이면 `setup.sh`가 `.env`의 `HOST_PORT`, `POSTGRES_HOST_PORT`를 자동 갱신합니다.
+기존 포트가 **Docker 컨테이너**에 의해 점유 중이면 해당 컨테이너를 강제 제거하고 기본 포트(`4000`, `5432`)를 그대로 사용합니다.  
+**다른 프로세스**가 점유 중이면 `.env`의 `HOST_PORT`, `POSTGRES_HOST_PORT`를 다음 빈 포트로 자동 갱신합니다.
 
 | 서비스 | 기본 주소 | 비고 |
 |--------|-----------|------|
 | REST API | http://localhost:4000 | `HOST_PORT` 변수에 따라 바뀜 |
 | **Swagger UI** | **http://localhost:4000/api-docs** | 포트는 HOST_PORT와 동일 |
+| **Adminer (웹 DB GUI)** | **http://localhost:8080** | `ADMINER_PORT` 변수에 따라 바뀜 |
+| **Prisma Studio** | **http://localhost:5555** | `make studio` 실행 후 접속 |
 | 헬스 체크 | http://localhost:4000/healthz | |
 | PostgreSQL | localhost:5432 | `POSTGRES_HOST_PORT` 변수에 따라 바뀜 |
 

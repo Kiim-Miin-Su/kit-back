@@ -70,19 +70,19 @@ winget install -e --id PostgreSQL.PostgreSQL.16
 ```
 
 ```bash
-git clone <repo-url>
+git clone <back-repo-url>
+git clone <front-repo-url>   # 같은 부모 디렉터리에 함께 둡니다
 cd back
 ./setup.sh
 ```
 
-같은 부모 디렉터리에 `front` 저장소가 함께 있으면 `back/setup.sh`가 front까지 이어서 기동합니다.
-
-예시:
+`back/setup.sh` 하나로 **back + front 전체 스택**을 기동합니다.  
+`back/docker-compose.yml`에 front 서비스가 포함되어 있어, `docker compose down` 한 번으로 모두 정리됩니다.
 
 ```text
 workspace/
-├── back/
-└── front/
+├── back/   ← 여기서 setup.sh 실행
+└── front/  ← docker-compose로 함께 기동
 ```
 
 > **Windows 사용자:** Git Bash / WSL2 터미널에서 실행하세요.  
@@ -111,15 +111,16 @@ Windows:
 4. 포트 충돌 자동 해결:
    - **Docker 컨테이너**가 점유 중이면 해당 컨테이너를 강제 제거하고 기본 포트 사용
    - **다른 프로세스**가 점유 중이면 빈 포트를 자동으로 탐색해 사용
-5. PostgreSQL + NestJS 컨테이너 시작
+5. **back + front 전체 스택** 컨테이너 시작 (`docker compose up -d`)
 6. 컨테이너 내부: `npm install` → `prisma generate` → `prisma migrate deploy` → 서버 시작
 7. 서버 헬스체크 통과 대기 (최대 3분)
 8. 개발용 테스트 seed 데이터 자동 적재
+9. 프론트엔드 Next.js 준비 대기 (최대 3분)
 
 첫 실행이 끝나면 다음 세 가지가 바로 가능해야 합니다.
 
-1. API 호출: `http://localhost:<HOST_PORT>`
-2. 브라우저/프론트 연동: sibling `front/setup.sh` 자동 기동
+1. 프론트엔드: `http://localhost:<FRONT_HOST_PORT>`
+2. API 호출: `http://localhost:<HOST_PORT>`
 3. 터미널 DB 접속: `psql -h localhost -p <POSTGRES_HOST_PORT> -U postgres -d ai_edu`
 
 예시 출력:
@@ -136,6 +137,7 @@ psql -h localhost -p 5433 -U postgres -d ai_edu
 
 | 서비스 | 기본 주소 | 비고 |
 |--------|-----------|------|
+| **프론트엔드** | **http://localhost:3000** | `FRONT_HOST_PORT` 변수에 따라 바뀜 |
 | REST API | http://localhost:4000 | `HOST_PORT` 변수에 따라 바뀜 |
 | **Swagger UI** | **http://localhost:4000/api-docs** | 포트는 HOST_PORT와 동일 |
 | **Adminer (웹 DB GUI)** | **http://localhost:8080** | `ADMINER_PORT` 변수에 따라 바뀜 |
@@ -184,10 +186,12 @@ psql -h localhost -p 5433 -U postgres -d ai_edu
 ## 이후 실행
 
 ```bash
-make dev        # 서버 재시작 (docker compose up)
-make logs       # 로그 스트리밍
-make stop       # 서버 중지
-make psql       # 호스트 터미널에서 PostgreSQL 접속
+make dev          # 서버 재시작 (back + front 전체)
+make logs         # back 로그 스트리밍
+make logs-front   # front 로그 스트리밍
+make stop         # 전체 중지 (back + front + db 포함)
+make clean        # 전체 컨테이너 + 볼륨 삭제 (DB 초기화)
+make psql         # 호스트 터미널에서 PostgreSQL 접속
 ```
 
 전체 명령어: `make help`
@@ -224,11 +228,13 @@ make psql
 | `HOST_PORT` | `4000` | 호스트에 노출할 백엔드 포트 |
 | `PORT` | `4000` | 서버 포트 |
 | `POSTGRES_HOST_PORT` | `5432` | 호스트에 노출할 PostgreSQL 포트 |
+| `FRONT_HOST_PORT` | `3000` | 호스트에 노출할 프론트엔드 포트 |
 | `DATA_SOURCE` | `prisma` | `memory` \| `prisma` |
 | `DATABASE_URL` | `postgresql://postgres@postgres:5432/ai_edu` | PostgreSQL 연결 URL |
 | `CORS_ORIGIN` | `http://localhost:3000` | 허용할 프론트엔드 origin |
 | `AUTH_TOKEN_SECRET` | _(코드 기본값 사용)_ | HMAC 서명 시크릿 (프로덕션 필수) |
 | `OPENAI_API_KEY` | _(비어있음)_ | OpenAI API 키 |
+| `NEXT_PUBLIC_DEV_ROLE_BYPASS` | `false` | 개발용 역할 우회 (front 환경 변수) |
 
 ---
 

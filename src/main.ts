@@ -21,10 +21,10 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle("AI Edu LMS API")
-    .setDescription("AI 교육 LMS REST API — 인증, 강좌, 수강, 출석, 과제, 관리자")
+    .setDescription("KIT Project LMS REST API — 인증, 강좌, 수강, 출석, 과제, 관리자")
     .setVersion("1.0")
     .addBearerAuth(
-      { type: "http", scheme: "bearer", bearerFormat: "JWT", in: "header" },
+      { type: "http", scheme: "bearer", bearerFormat: "Token", in: "header" },
       "access-token",
     )
     .build();

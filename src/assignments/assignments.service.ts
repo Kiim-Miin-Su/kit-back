@@ -661,7 +661,10 @@ export class AssignmentsService {
     user: AuthenticatedRequestUser,
   ) {
     const enrolledCourses = await this.enrollmentsService.listMyCourses(user.userId);
-    const enrolledCourseIds = enrolledCourses.map((course) => course.id);
+    // ACTIVE 수강 중인 과정만 과제 워크스페이스에 포함 (PENDING/COMPLETED 제외)
+    const enrolledCourseIds = enrolledCourses
+      .filter((course) => course.enrollmentStatus === "ACTIVE")
+      .map((course) => course.id);
 
     this.upsertStudentDirectory(database, {
       studentId: user.userId,

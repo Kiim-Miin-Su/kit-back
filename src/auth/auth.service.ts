@@ -83,8 +83,13 @@ export class AuthService {
     return { success: true };
   }
 
-  getMe(user: AuthenticatedRequestUser): AuthenticatedRequestUser {
-    return user;
+  getMe(user: AuthenticatedRequestUser): AuthSessionResponse["user"] {
+    return {
+      id: user.userId,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
   }
 
   async refresh(request: CookieRequest, response: CookieResponse) {

@@ -15,7 +15,7 @@ export class FilesController {
   constructor(private readonly filesService: FilesService) {}
 
   @Post("presign")
-  @ApiOperation({ summary: "파일 업로드 Presigned URL 발급", description: "S3에 직접 업로드할 수 있는 Presigned PUT URL을 발급합니다. S3_BUCKET 미설정 시 Mock URL을 반환합니다." })
+  @ApiOperation({ summary: "파일 업로드 URL 발급", description: "로컬 개발 환경에서 사용할 업로드용 mock URL을 발급합니다." })
   @ApiResponse({ status: 201, description: "fileId + uploadUrl 반환" })
   @ApiResponse({ status: 400, description: "지원하지 않는 MIME 타입(UNSUPPORTED_MIME_TYPE), 크기 초과, checksum 형식 오류" })
   presign(
@@ -26,7 +26,7 @@ export class FilesController {
   }
 
   @Post("complete")
-  @ApiOperation({ summary: "파일 업로드 완료 처리", description: "S3 업로드 후 checksum/size 검증 및 상태를 COMPLETED로 변경합니다." })
+  @ApiOperation({ summary: "파일 업로드 완료 처리", description: "업로드 후 checksum/size를 검증하고 상태를 COMPLETED로 변경합니다." })
   @ApiResponse({ status: 201, description: "downloadUrl 포함 완료 응답" })
   @ApiResponse({ status: 400, description: "checksum 불일치(CHECKSUM_MISMATCH) 또는 size 불일치" })
   @ApiResponse({ status: 409, description: "이미 완료된 업로드(FILE_UPLOAD_ALREADY_COMPLETED)" })

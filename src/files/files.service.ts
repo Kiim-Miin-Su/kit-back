@@ -18,10 +18,6 @@ import {
   StoredFileRecord,
 } from "./files.types";
 
-// S3_BUCKET_UPLOADS 미설정 시 mock URL을 반환 (로컬/개발 환경)
-const S3_BUCKET = process.env.S3_BUCKET_UPLOADS ?? "";
-const AWS_REGION = process.env.AWS_REGION ?? "ap-northeast-2";
-
 @Injectable()
 export class FilesService {
 
@@ -178,21 +174,11 @@ export class FilesService {
   }
 
   private async buildUploadUrl(bucketKey: string, _contentType: string, _checksum: string): Promise<string> {
-    if (!S3_BUCKET) {
-      return `https://storage.mock.local/upload/${encodeURIComponent(bucketKey)}?signature=dev-signature`;
-    }
-
-    // S3_BUCKET_UPLOADS 설정 시 실제 presigned URL 생성 필요
-    // (프로덕션 전환 시 @aws-sdk/client-s3 + @aws-sdk/s3-request-presigner 설치 후 구현)
-    throw new Error("S3 presigned URL 생성은 프로덕션 환경에서만 지원됩니다.");
+    return `https://storage.mock.local/upload/${encodeURIComponent(bucketKey)}?signature=dev-signature`;
   }
 
   private buildDownloadUrl(bucketKey: string) {
-    if (!S3_BUCKET) {
-      return `https://storage.mock.local/download/${encodeURIComponent(bucketKey)}`;
-    }
-
-    return `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${bucketKey}`;
+    return `https://storage.mock.local/download/${encodeURIComponent(bucketKey)}`;
   }
 
   private normalizeFileName(fileName: string) {

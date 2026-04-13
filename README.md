@@ -77,7 +77,7 @@ make help       # 전체 명령어 목록
 | 프레임워크 | NestJS 11, TypeScript |
 | ORM | Prisma 6, PostgreSQL 16 |
 | 인증 | HMAC 커스텀 토큰 + httpOnly refresh cookie |
-| API 문서 | 현재 미구현 |
+| API 문서 | Swagger UI (`/api-docs`) |
 | 컨테이너 | Docker Compose |
 
 ---

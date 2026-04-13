@@ -131,17 +131,48 @@ psql -h localhost -p 5433 -U postgres -d ai_edu
 
 기존 `4000`, `5432`가 이미 사용 중이면 `setup.sh`가 `.env`의 `HOST_PORT`, `POSTGRES_HOST_PORT`를 자동 갱신합니다.
 
-| 서비스 | URL |
-|--------|-----|
-| REST API | http://localhost:4000 |
-| 헬스 체크 | http://localhost:4000/healthz |
-| PostgreSQL | localhost:5432 |
+| 서비스 | 기본 주소 | 비고 |
+|--------|-----------|------|
+| REST API | http://localhost:4000 | `HOST_PORT` 변수에 따라 바뀜 |
+| **Swagger UI** | **http://localhost:4000/api-docs** | 포트는 HOST_PORT와 동일 |
+| 헬스 체크 | http://localhost:4000/healthz | |
+| PostgreSQL | localhost:5432 | `POSTGRES_HOST_PORT` 변수에 따라 바뀜 |
+
+> **실제 포트 확인:** `setup.sh` 완료 메시지에 출력된 주소를 사용하거나, `cat .env | grep HOST_PORT`로 확인하세요.
+>
+> **DB 접속 방법:** 비밀번호 없음 (개발 환경 `trust` 인증)
+> ```bash
+> make psql          # .env의 POSTGRES_HOST_PORT를 자동으로 읽어 접속
+> # 또는
+> psql -h localhost -p $(grep POSTGRES_HOST_PORT .env | cut -d= -f2) -U postgres -d ai_edu
+> ```
 
 ```bash
 ./setup.sh --no-seed    # seed 없이 실행
 ./setup.sh --no-install # Docker 자동 설치 비활성화
 ./setup.sh --no-front   # back만 실행
 ```
+
+---
+
+## Swagger UI 사용법
+
+서버 실행 후 http://localhost:4000/api-docs 에서 모든 API를 테스트할 수 있습니다.
+
+**인증이 필요한 엔드포인트 사용 방법:**
+
+1. `POST /auth/sign-in` 실행 → 응답의 `accessToken` 복사
+2. 우측 상단 **Authorize** 버튼 클릭
+3. `access-token` 입력란에 복사한 토큰 붙여넣기 → **Authorize**
+4. 이제 `🔒` 아이콘이 붙은 엔드포인트 모두 테스트 가능
+
+**테스트 계정:**
+
+| 역할 | 이메일 | 비밀번호 |
+|------|--------|----------|
+| 학생 | `student-demo-01@koreait.academy` | `password123` |
+| 강사 | `instructor-dev-01@koreait.academy` | `password123` |
+| 관리자 | `admin-root@koreait.academy` | `password123` |
 
 ---
 
@@ -174,6 +205,7 @@ make psql
 | 프레임워크 | NestJS 11, TypeScript |
 | ORM | Prisma 6, PostgreSQL 16 |
 | 인증 | HMAC 커스텀 토큰 + httpOnly refresh cookie |
+| API 문서 | Swagger UI (`/api-docs`) |
 | 컨테이너 | Docker Compose |
 
 ---
@@ -200,13 +232,16 @@ make psql
 앱 컨테이너는 내부적으로 `postgres:5432`에 붙고, 개발자는 호스트에서 `localhost:${POSTGRES_HOST_PORT}`로 붙습니다.
 
 ```bash
-make psql
+make psql    # .env의 POSTGRES_HOST_PORT를 자동으로 읽어 접속 (권장)
 
-# 또는 직접 실행
-psql -h localhost -p 5432 -U postgres -d ai_edu
+# 또는 직접 실행 (.env에서 포트 확인 후)
+# grep POSTGRES_HOST_PORT .env  → 실제 포트 확인
+psql -h localhost -p <POSTGRES_HOST_PORT> -U postgres -d ai_edu
 ```
 
-포트가 자동 변경된 경우에는 `.env`의 `POSTGRES_HOST_PORT` 값을 사용하면 됩니다.
+> **비밀번호 없음** — 개발 환경은 `trust` 인증이라 비밀번호를 묻지 않습니다.  
+> **실제 포트 확인** — `setup.sh`가 5432가 이미 사용 중이면 5433 등으로 자동 변경합니다.  
+> `cat .env | grep POSTGRES_HOST_PORT` 로 현재 할당된 포트를 확인하세요.
 
 운영자가 주로 확인하는 값:
 

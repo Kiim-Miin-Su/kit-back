@@ -4,11 +4,15 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PRESET="compose"
+AUTO_INSTALL=0
 
 for arg in "$@"; do
   case "$arg" in
     --preset=*)
       PRESET="${arg#--preset=}"
+      ;;
+    --install)
+      AUTO_INSTALL=1
       ;;
   esac
 done
@@ -77,39 +81,115 @@ print_install_help() {
   esac
 }
 
+try_install() {
+  local target="$1"
+  local os_name
+  os_name="$(uname -s)"
+
+  case "${os_name}" in
+    Darwin)
+      if ! has_cmd brew; then
+        echo "[install] Homebrew가 없어 자동 설치를 건너뜁니다."
+        return
+      fi
+      case "${target}" in
+        docker)
+          brew install --cask docker
+          ;;
+        node)
+          brew install node
+          ;;
+        postgres)
+          brew install postgresql@16
+          ;;
+      esac
+      ;;
+    Linux)
+      if is_wsl && [[ "${target}" == "docker" ]]; then
+        echo "[install] WSL에서는 Docker Desktop을 Windows에 설치해야 합니다."
+        return
+      fi
+
+      if ! has_cmd apt-get; then
+        echo "[install] apt-get이 없어 자동 설치를 건너뜁니다."
+        return
+      fi
+
+      sudo apt-get update
+
+      case "${target}" in
+        docker)
+          sudo apt-get install -y docker.io docker-compose-v2 docker-compose-plugin
+          ;;
+        node)
+          sudo apt-get install -y nodejs npm
+          ;;
+        postgres)
+          sudo apt-get install -y postgresql postgresql-contrib
+          ;;
+      esac
+      ;;
+  esac
+}
+
 echo "[check] preset=${PRESET}"
 
 MISSING=0
 
 if ! has_cmd docker; then
   echo "[missing] docker"
+  if [[ "${AUTO_INSTALL}" -eq 1 ]]; then
+    try_install docker
+  fi
   print_install_help docker
-  MISSING=1
+  if ! has_cmd docker; then
+    MISSING=1
+  fi
 fi
 
 if has_cmd docker && ! docker compose version >/dev/null 2>&1; then
   echo "[missing] docker compose plugin"
+  if [[ "${AUTO_INSTALL}" -eq 1 ]]; then
+    try_install docker
+  fi
   print_install_help docker
-  MISSING=1
+  if ! docker compose version >/dev/null 2>&1; then
+    MISSING=1
+  fi
 fi
 
 if [[ "${PRESET}" == "local-node" ]]; then
   if ! has_cmd node; then
     echo "[missing] node"
+    if [[ "${AUTO_INSTALL}" -eq 1 ]]; then
+      try_install node
+    fi
     print_install_help node
-    MISSING=1
+    if ! has_cmd node; then
+      MISSING=1
+    fi
   fi
 
   if ! has_cmd npm; then
     echo "[missing] npm"
+    if [[ "${AUTO_INSTALL}" -eq 1 ]]; then
+      try_install node
+    fi
     print_install_help node
-    MISSING=1
+    if ! has_cmd npm; then
+      MISSING=1
+    fi
   fi
 
   if ! has_cmd psql && ! has_cmd docker; then
     echo "[missing] postgres client/server or docker for local-node preset"
+    if [[ "${AUTO_INSTALL}" -eq 1 ]]; then
+      try_install postgres
+    fi
     print_install_help postgres
-    MISSING=1
+    if ! has_cmd psql && ! has_cmd docker; then
+      MISSING=1
+    fi
   fi
 else
   if ! has_cmd node || ! has_cmd npm; then

@@ -89,6 +89,11 @@ PY
     return $?
   fi
 
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command "\$connections = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction SilentlyContinue; if (\$connections) { exit 0 } else { exit 1 }" >/dev/null 2>&1
+    return $?
+  fi
+
   return 1
 }
 

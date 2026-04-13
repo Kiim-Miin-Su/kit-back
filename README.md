@@ -8,6 +8,16 @@ NestJS + Prisma 기반 AI 교육 LMS REST API 서버입니다.
 
 **사전 요구사항:** `./setup.sh`가 Docker와 `psql` 클라이언트 설치를 우선 시도합니다. 운영자는 macOS `Terminal` 또는 Windows `Git Bash`에서 그대로 실행하면 됩니다.
 
+### 먼저 알아둘 점
+
+완전히 아무것도 없는 새 PC에서 `git clone` 직후 100% 무설치 자동 실행까지는 아닙니다. 아래 항목은 사용자가 직접 준비하거나 최초 1회 승인해야 할 수 있습니다.
+
+1. `Git` 또는 `Git Bash`
+2. 인터넷 연결
+3. Docker Desktop 최초 실행/권한 승인
+4. 회사 보안 정책 때문에 `brew`, `winget` 자동 설치가 막힌 경우의 수동 설치
+5. 백엔드에서 터미널 DB 접속까지 하려면 `psql` 클라이언트
+
 ### 최소 설치물
 
 macOS:
@@ -25,6 +35,21 @@ Windows:
 4. `winget`은 자동 설치를 쓰고 싶을 때만 필요
 
 `setup.sh`는 위 항목이 없으면 가능한 범위까지 자동 설치를 시도합니다. 다만 회사 PC 정책 때문에 `brew`나 `winget`이 막혀 있으면 수동 설치 후 다시 `./setup.sh`를 실행하면 됩니다.
+
+### 자동 설치가 안 되는 경우 직접 설치해야 하는 것
+
+macOS:
+
+1. `Git`이 없어서 저장소 clone 자체를 못 하는 경우
+2. `Homebrew`가 없고, 앱 설치를 CLI로 하고 싶지 않은 경우
+3. Docker Desktop 첫 실행에서 macOS 보안 승인/로그인이 필요한 경우
+
+Windows:
+
+1. `Git Bash`가 없어서 `./setup.sh`를 실행할 셸이 없는 경우
+2. `winget` 사용이 차단된 회사 PC
+3. Docker Desktop 첫 실행에서 관리자 권한 또는 WSL 연동 승인이 필요한 경우
+4. `psql` 클라이언트를 별도 설치해야 하는 경우
 
 ### 수동 설치 명령
 
@@ -149,7 +174,7 @@ make psql
 | 프레임워크 | NestJS 11, TypeScript |
 | ORM | Prisma 6, PostgreSQL 16 |
 | 인증 | HMAC 커스텀 토큰 + httpOnly refresh cookie |
-| API 문서 | 현재 별도 Swagger UI 미구성 |
+| API 문서 | Swagger UI (`/api-docs`) |
 | 컨테이너 | Docker Compose |
 
 ---

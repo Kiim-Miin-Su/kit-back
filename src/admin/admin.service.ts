@@ -226,6 +226,21 @@ export class AdminService {
     };
   }
 
+  /**
+   * 학생 출석 워크스페이스에 포함할 커스텀 일정을 반환합니다.
+   * - visibilityType === "global" 이거나 scopes에 visibilityScope가 포함된 CUSTOM 일정만 반환
+   */
+  getCustomSchedulesForScopes(scopes: string[]): AdminScheduleEvent[] {
+    const scopeSet = new Set(scopes);
+    return this.schedules
+      .filter(
+        (schedule) =>
+          schedule.sourceType === "CUSTOM" &&
+          (schedule.visibilityType === "global" || scopeSet.has(schedule.visibilityScope)),
+      )
+      .map((schedule) => ({ ...schedule }));
+  }
+
   createSchedule(input: CreateAdminScheduleDto): AdminScheduleEvent {
     this.assertScheduleInput(input);
 

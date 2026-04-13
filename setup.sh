@@ -22,11 +22,11 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-info()    { echo -e "${CYAN}[INFO]${RESET}  $*"; }
-success() { echo -e "${GREEN}[OK]${RESET}    $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${RESET}  $*"; }
+info()    { echo -e "${CYAN}[INFO]${RESET}  $*" >&2; }
+success() { echo -e "${GREEN}[OK]${RESET}    $*" >&2; }
+warn()    { echo -e "${YELLOW}[WARN]${RESET}  $*" >&2; }
 error()   { echo -e "${RED}[ERROR]${RESET} $*" >&2; }
-step()    { echo -e "\n${BOLD}▶ $*${RESET}"; }
+step()    { echo -e "\n${BOLD}▶ $*${RESET}" >&2; }
 
 read_env_var() {
   local file="$1"
@@ -97,15 +97,46 @@ PY
   return 1
 }
 
-find_available_port() {
-  local start_port="$1"
-  local port="${start_port}"
+# 해당 포트를 점유 중인 Docker 컨테이너 이름을 반환 (없으면 빈 문자열)
+get_docker_container_on_port() {
+  local port="$1"
+  docker ps --format '{{.Names}}\t{{.Ports}}' 2>/dev/null \
+    | awk -v p="${port}" '$0 ~ ":" p "->" { match($0, /^[^\t]+/); print substr($0, RSTART, RLENGTH) }' \
+    | head -n 1
+}
 
-  while is_port_in_use "${port}"; do
-    port=$((port + 1))
+# 포트를 점유한 Docker 컨테이너가 있으면 강제 제거 후 0 반환, 없으면 1 반환
+free_port_if_docker() {
+  local port="$1"
+  local container
+  container="$(get_docker_container_on_port "${port}")"
+  if [ -n "${container}" ]; then
+    warn "포트 ${port}를 사용 중인 Docker 컨테이너: ${container}"
+    info "컨테이너를 강제 제거합니다: ${container}"
+    docker rm -f "${container}" >/dev/null 2>&1
+    success "컨테이너 제거 완료 → 포트 ${port} 확보"
+    return 0
+  fi
+  return 1
+}
+
+# 포트 확보: Docker 컨테이너이면 제거 후 원래 포트 사용, 아니면 다음 빈 포트 탐색
+resolve_port() {
+  local port="$1"
+  if ! is_port_in_use "${port}"; then
+    printf "%s" "${port}"
+    return
+  fi
+  if free_port_if_docker "${port}"; then
+    printf "%s" "${port}"
+    return
+  fi
+  # 비-Docker 프로세스 점유 → 다음 빈 포트 탐색
+  local next="${port}"
+  while is_port_in_use "${next}"; do
+    next=$((next + 1))
   done
-
-  printf "%s" "${port}"
+  printf "%s" "${next}"
 }
 
 # ── 옵션 파싱 ─────────────────────────────────────────────
@@ -138,26 +169,33 @@ success "사전 요구사항 확인 완료"
 
 step "호스트 포트 점검"
 ENV_FILE="${ROOT_DIR}/.env"
-BACK_HOST_PORT="$(read_env_var "${ENV_FILE}" "HOST_PORT")"
-POSTGRES_HOST_PORT="$(read_env_var "${ENV_FILE}" "POSTGRES_HOST_PORT")"
 
-[ -n "${BACK_HOST_PORT}" ] || BACK_HOST_PORT=4000
-[ -n "${POSTGRES_HOST_PORT}" ] || POSTGRES_HOST_PORT=5432
+# 항상 기본 포트에서 시작 (.env의 이전 값 무시)
+BACK_HOST_PORT=4000
+POSTGRES_HOST_PORT=5432
 
-RESOLVED_BACK_HOST_PORT="$(find_available_port "${BACK_HOST_PORT}")"
-RESOLVED_POSTGRES_HOST_PORT="$(find_available_port "${POSTGRES_HOST_PORT}")"
+RESOLVED_BACK_HOST_PORT="$(resolve_port "${BACK_HOST_PORT}")"
+RESOLVED_POSTGRES_HOST_PORT="$(resolve_port "${POSTGRES_HOST_PORT}")"
+FRONT_HOST_PORT=3000
+RESOLVED_FRONT_HOST_PORT="$(resolve_port "${FRONT_HOST_PORT}")"
 
 if [ "${RESOLVED_BACK_HOST_PORT}" != "${BACK_HOST_PORT}" ]; then
-  warn "HOST_PORT ${BACK_HOST_PORT} 사용 중 → ${RESOLVED_BACK_HOST_PORT}로 변경"
+  warn "HOST_PORT ${BACK_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_BACK_HOST_PORT}로 변경"
 fi
 
 if [ "${RESOLVED_POSTGRES_HOST_PORT}" != "${POSTGRES_HOST_PORT}" ]; then
-  warn "POSTGRES_HOST_PORT ${POSTGRES_HOST_PORT} 사용 중 → ${RESOLVED_POSTGRES_HOST_PORT}로 변경"
+  warn "POSTGRES_HOST_PORT ${POSTGRES_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_POSTGRES_HOST_PORT}로 변경"
+fi
+
+if [ "${RESOLVED_FRONT_HOST_PORT}" != "${FRONT_HOST_PORT}" ]; then
+  warn "FRONT_HOST_PORT ${FRONT_HOST_PORT} 사용 중 (비-Docker 프로세스) → ${RESOLVED_FRONT_HOST_PORT}로 변경"
 fi
 
 set_env_var "${ENV_FILE}" "HOST_PORT" "${RESOLVED_BACK_HOST_PORT}"
 set_env_var "${ENV_FILE}" "POSTGRES_HOST_PORT" "${RESOLVED_POSTGRES_HOST_PORT}"
-success "호스트 포트 확인 완료 (back=${RESOLVED_BACK_HOST_PORT}, postgres=${RESOLVED_POSTGRES_HOST_PORT})"
+set_env_var "${ENV_FILE}" "FRONT_HOST_PORT" "${RESOLVED_FRONT_HOST_PORT}"
+set_env_var "${ENV_FILE}" "CORS_ORIGIN" "http://localhost:${RESOLVED_FRONT_HOST_PORT}"
+success "호스트 포트 확인 완료 (back=${RESOLVED_BACK_HOST_PORT}, postgres=${RESOLVED_POSTGRES_HOST_PORT}, front=${RESOLVED_FRONT_HOST_PORT})"
 
 # compose 커맨드 선택
 if docker compose version &>/dev/null 2>&1; then
@@ -169,9 +207,15 @@ fi
 # ══════════════════════════════════════════════════════════
 # STEP 2. 컨테이너 시작
 # ══════════════════════════════════════════════════════════
-step "컨테이너 시작 (postgres + back)"
-info "최초 실행 시 node:20-alpine 이미지 다운로드로 수 분 소요될 수 있습니다."
-$COMPOSE up -d
+if [ "${START_FRONT}" = true ]; then
+  step "컨테이너 시작 (postgres + back + front + adminer + studio)"
+  info "최초 실행 시 node:20-alpine 이미지 다운로드로 수 분 소요될 수 있습니다."
+  $COMPOSE up -d
+else
+  step "컨테이너 시작 (postgres + back, front 제외)"
+  info "최초 실행 시 node:20-alpine 이미지 다운로드로 수 분 소요될 수 있습니다."
+  $COMPOSE up -d postgres back adminer studio
+fi
 
 # ══════════════════════════════════════════════════════════
 # STEP 3. 서버 준비 대기 (healthcheck 기반)
@@ -227,15 +271,77 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════
+# STEP 5. 프론트엔드 준비 대기 (back compose에 포함된 front)
+# ══════════════════════════════════════════════════════════
+if [ "${START_FRONT}" = true ]; then
+  step "프론트엔드 준비 대기 (최대 3분)"
+  info "Next.js dev 서버 시작 중..."
+
+  MAX_FRONT_WAIT=180
+  ELAPSED=0
+  SPIN=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  SPIN_IDX=0
+
+  while true; do
+    if curl -sf "http://localhost:${RESOLVED_FRONT_HOST_PORT}" >/dev/null 2>&1 || \
+       (command -v python3 >/dev/null 2>&1 && python3 -c "
+import urllib.request, sys
+try:
+    urllib.request.urlopen('http://localhost:${RESOLVED_FRONT_HOST_PORT}', timeout=3)
+    sys.exit(0)
+except:
+    sys.exit(1)
+" 2>/dev/null); then
+      echo ""
+      success "프론트엔드가 준비됐습니다!"
+      break
+    fi
+
+    if [ $ELAPSED -ge $MAX_FRONT_WAIT ]; then
+      echo ""
+      warn "프론트엔드 시작 시간 초과 — 아직 빌드 중일 수 있습니다."
+      warn "로그 확인: make logs-front"
+      break
+    fi
+
+    printf "\r  ${SPIN[$SPIN_IDX]} 대기 중... (${ELAPSED}s / ${MAX_FRONT_WAIT}s)"
+    SPIN_IDX=$(( (SPIN_IDX + 1) % ${#SPIN[@]} ))
+    sleep 5
+    ELAPSED=$((ELAPSED + 5))
+  done
+fi
+
+# ══════════════════════════════════════════════════════════
 # 완료
 # ══════════════════════════════════════════════════════════
 echo ""
+RESOLVED_ADMINER_PORT="$(read_env_var "${ENV_FILE}" "ADMINER_PORT")"
+[ -n "${RESOLVED_ADMINER_PORT}" ] || RESOLVED_ADMINER_PORT=8080
+
 echo -e "${GREEN}${BOLD}✓ 설정 완료!${RESET}"
 echo ""
-echo "  서비스 주소:"
-echo "    REST API   → http://localhost:${RESOLVED_BACK_HOST_PORT}"
-echo "    Healthz    → http://localhost:${RESOLVED_BACK_HOST_PORT}/healthz"
-echo "    PostgreSQL → localhost:${RESOLVED_POSTGRES_HOST_PORT}"
+if [ "${START_FRONT}" = true ]; then
+echo "  ┌─ 웹 서비스 ───────────────────────────────────────────"
+echo "  │  프론트엔드      → http://localhost:${RESOLVED_FRONT_HOST_PORT}"
+echo "  │  REST API        → http://localhost:${RESOLVED_BACK_HOST_PORT}"
+echo "  │  Swagger UI      → http://localhost:${RESOLVED_BACK_HOST_PORT}/api-docs"
+echo "  │  Adminer (DB웹)  → http://localhost:${RESOLVED_ADMINER_PORT}"
+echo "  │  Prisma Studio   → http://localhost:5555"
+echo "  └────────────────────────────────────────────────────"
+else
+echo "  ┌─ 웹 서비스 (front 제외) ──────────────────────────────"
+echo "  │  REST API        → http://localhost:${RESOLVED_BACK_HOST_PORT}"
+echo "  │  Swagger UI      → http://localhost:${RESOLVED_BACK_HOST_PORT}/api-docs"
+echo "  │  Adminer (DB웹)  → http://localhost:${RESOLVED_ADMINER_PORT}"
+echo "  │  Prisma Studio   → http://localhost:5555"
+echo "  └────────────────────────────────────────────────────"
+fi
+echo ""
+echo "  Adminer 접속 정보 (Server: postgres, PW: 없음, DB: ai_edu):"
+echo "    http://localhost:${RESOLVED_ADMINER_PORT}"
+echo ""
+echo "  ⚠  PostgreSQL(5432)은 브라우저로 접속하는 포트가 아닙니다."
+echo "     DB 웹 GUI → Adminer(${RESOLVED_ADMINER_PORT})  |  터미널 → psql"
 echo ""
 echo "  터미널 DB 접속:"
 echo "    psql -h localhost -p ${RESOLVED_POSTGRES_HOST_PORT} -U postgres -d ai_edu"
@@ -245,28 +351,10 @@ echo "    학생     → student-demo-01@koreait.academy / password123"
 echo "    강사     → instructor-dev-01@koreait.academy / password123"
 echo "    관리자   → admin-root@koreait.academy / password123"
 echo ""
-
-if [ "${START_FRONT}" = true ] && [ -d "${FRONT_DIR}" ] && [ -f "${FRONT_DIR}/setup.sh" ]; then
-  step "프론트엔드 시작"
-  info "sibling front 디렉터리 발견: ${FRONT_DIR}"
-  (
-    cd "${FRONT_DIR}" &&
-    bash setup.sh --skip-back-bootstrap ${INSTALL_FLAG}
-  )
-  success "프론트엔드 준비 완료"
-  echo ""
-  echo "  전체 서비스 주소:"
-  echo "    프론트엔드 → front/.env의 HOST_PORT 참고"
-  echo "    백엔드 API → http://localhost:${RESOLVED_BACK_HOST_PORT}"
-  echo ""
-elif [ "${START_FRONT}" = true ]; then
-  warn "sibling front 디렉터리를 찾지 못해 back만 실행했습니다."
-  warn "front도 함께 실행하려면 같은 부모 디렉터리에 front 저장소를 둔 뒤 다시 실행하세요."
-  echo ""
-fi
-
 echo "  이후 실행:"
-echo "    make dev     # 서버 재시작"
-echo "    make logs    # 로그 보기"
-echo "    make help    # 전체 명령어 목록"
+echo "    make dev          # 전체 서버 재시작"
+echo "    make logs         # back 로그"
+echo "    make logs-front   # front 로그"
+echo "    make stop         # 전체 중지 (front 포함)"
+echo "    make help         # 전체 명령어 목록"
 echo ""

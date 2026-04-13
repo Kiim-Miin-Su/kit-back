@@ -10,6 +10,8 @@ import { AUTH_SESSION_REPOSITORY, AuthSessionRepository } from "./auth-session.r
 import {
   AuthenticatedRequestUser,
   AuthSessionResponse,
+  CookieRequest,
+  CookieResponse,
   StoredRefreshSession,
 } from "./auth.types";
 import { TokenCodecService } from "./token-codec.service";
@@ -17,26 +19,8 @@ import { TokenCodecService } from "./token-codec.service";
 const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;
 const REFRESH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7;
 const REFRESH_COOKIE_NAME = "ai_edu_refresh_token";
-
-interface CookieRequest {
-  headers: {
-    cookie?: string;
-  };
-}
-
-interface CookieResponse {
-  cookie: (
-    name: string,
-    value: string,
-    options: {
-      httpOnly: boolean;
-      sameSite: "lax";
-      secure: boolean;
-      path: string;
-      maxAge: number;
-    },
-  ) => void;
-}
+// 미들웨어(Edge)가 읽을 수 있도록 non-httpOnly로 설정하는 역할 쿠키
+const ROLE_COOKIE_NAME = "ai_edu_role";
 
 @Injectable()
 export class AuthService {
@@ -83,8 +67,13 @@ export class AuthService {
     return { success: true };
   }
 
-  getMe(user: AuthenticatedRequestUser): AuthenticatedRequestUser {
-    return user;
+  getMe(user: AuthenticatedRequestUser): AuthSessionResponse["user"] {
+    return {
+      id: user.userId,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    };
   }
 
   async refresh(request: CookieRequest, response: CookieResponse) {
@@ -161,6 +150,7 @@ export class AuthService {
     );
 
     this.setRefreshCookie(response, refreshToken);
+    this.setRoleCookie(response, user.role, REFRESH_TOKEN_TTL_SECONDS);
 
     return {
       accessToken,
@@ -209,6 +199,23 @@ export class AuthService {
       secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 0,
+    });
+    response.cookie(ROLE_COOKIE_NAME, "", {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 0,
+    });
+  }
+
+  private setRoleCookie(response: CookieResponse, role: string, maxAge: number) {
+    response.cookie(ROLE_COOKIE_NAME, role, {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: maxAge * 1000,
     });
   }
 

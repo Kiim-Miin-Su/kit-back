@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
 } from "@nestjs/common";
+import { AdminService } from "../admin/admin.service";
 import { CoursesService } from "../courses/courses.service";
 import { EnrollmentsService } from "../enrollments/enrollments.service";
 import { ATTENDANCE_REPOSITORY, AttendanceRepository } from "./attendance.repository";
@@ -22,13 +23,16 @@ export class AttendanceService {
     private readonly repository: AttendanceRepository,
     private readonly enrollmentsService: EnrollmentsService,
     private readonly coursesService: CoursesService,
+    private readonly adminService: AdminService,
   ) {}
 
   async getWorkspace(userId: string): Promise<StudentAttendanceWorkspaceResponse> {
     const enrollment = await this.getPrimaryEnrollmentOrThrow(userId);
     const course = await this.coursesService.getStoredCourseById(enrollment.courseId);
     const database = await this.readDatabase();
-    const schedules = await Promise.all(
+    const visibleScopes = ["global", course.classScope];
+
+    const templateSchedules = await Promise.all(
       database.scheduleTemplates.map((template) =>
         this.buildScheduleResponse({
           userId,
@@ -39,14 +43,35 @@ export class AttendanceService {
       ),
     );
 
+    const customSchedules: StudentScheduleResponse[] = this.adminService
+      .getCustomSchedulesForScopes(visibleScopes)
+      .map((schedule) => ({
+        id: schedule.id,
+        title: schedule.title,
+        categoryLabel: schedule.categoryLabel,
+        dateKey: schedule.dateKey,
+        dateLabel: schedule.dateLabel,
+        timeLabel: schedule.timeLabel,
+        locationLabel: schedule.locationLabel,
+        visibilityType: schedule.visibilityType,
+        visibilityScope: schedule.visibilityScope,
+        visibilityLabel: schedule.visibilityLabel,
+        requiresAttendanceCheck: schedule.requiresAttendanceCheck,
+        attendanceWindowLabel: schedule.attendanceWindowLabel,
+        attendanceWindowStartAt: schedule.attendanceWindowStartAt,
+        attendanceWindowEndAt: schedule.attendanceWindowEndAt,
+        attendanceStatus: schedule.requiresAttendanceCheck ? "NOT_CHECKED_IN" : undefined,
+        supportsCodeCheckIn: false,
+      }));
+
     return {
       programName: database.programName,
       className: course.title,
       classScope: course.classScope,
-      allowedScheduleScopes: ["global", course.classScope],
+      allowedScheduleScopes: visibleScopes,
       allowedScheduleLabels: ["학원 전체 행사", `${course.title} 수업`],
       expectedCodeLength: database.expectedCodeLength,
-      schedules,
+      schedules: [...templateSchedules, ...customSchedules],
     };
   }
 
@@ -119,10 +144,13 @@ export class AttendanceService {
     }
 
     const checkedAt = new Date().toISOString();
+    const isLate = this.isLateCheckIn(target.attendanceWindowStartAt, checkedAt);
+    const attendanceStatus = isLate ? "LATE" : "CHECKED_IN";
+
     const nextRecord: AttendanceRecord = {
       userId,
       scheduleKey,
-      attendanceStatus: "CHECKED_IN",
+      attendanceStatus,
       checkedAt,
     };
 
@@ -134,9 +162,9 @@ export class AttendanceService {
 
     return {
       scheduleId,
-      attendanceStatus: "CHECKED_IN",
+      attendanceStatus,
       checkedAt,
-      isLate: false,
+      isLate,
     };
   }
 
@@ -229,6 +257,17 @@ export class AttendanceService {
 
     const now = Date.now();
     return now >= new Date(startAt).getTime() && now <= new Date(endAt).getTime();
+  }
+
+  private isLateCheckIn(windowStartAt?: string, checkedAt?: string): boolean {
+    if (!windowStartAt || !checkedAt) {
+      return false;
+    }
+
+    const lateThresholdMs = 10 * 60 * 1000;
+    const startTime = new Date(windowStartAt).getTime();
+    const checkTime = new Date(checkedAt).getTime();
+    return checkTime > startTime + lateThresholdMs;
   }
 
   private addDays(date: Date, days: number) {

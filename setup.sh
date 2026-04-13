@@ -169,11 +169,10 @@ success "사전 요구사항 확인 완료"
 
 step "호스트 포트 점검"
 ENV_FILE="${ROOT_DIR}/.env"
-BACK_HOST_PORT="$(read_env_var "${ENV_FILE}" "HOST_PORT")"
-POSTGRES_HOST_PORT="$(read_env_var "${ENV_FILE}" "POSTGRES_HOST_PORT")"
 
-[ -n "${BACK_HOST_PORT}" ] || BACK_HOST_PORT=4000
-[ -n "${POSTGRES_HOST_PORT}" ] || POSTGRES_HOST_PORT=5432
+# 항상 기본 포트에서 시작 (.env의 이전 값 무시)
+BACK_HOST_PORT=4000
+POSTGRES_HOST_PORT=5432
 
 RESOLVED_BACK_HOST_PORT="$(resolve_port "${BACK_HOST_PORT}")"
 RESOLVED_POSTGRES_HOST_PORT="$(resolve_port "${POSTGRES_HOST_PORT}")"
@@ -261,12 +260,22 @@ fi
 # 완료
 # ══════════════════════════════════════════════════════════
 echo ""
+RESOLVED_ADMINER_PORT="$(read_env_var "${ENV_FILE}" "ADMINER_PORT")"
+[ -n "${RESOLVED_ADMINER_PORT}" ] || RESOLVED_ADMINER_PORT=8080
+
 echo -e "${GREEN}${BOLD}✓ 설정 완료!${RESET}"
 echo ""
 echo "  서비스 주소:"
-echo "    REST API   → http://localhost:${RESOLVED_BACK_HOST_PORT}"
-echo "    Healthz    → http://localhost:${RESOLVED_BACK_HOST_PORT}/healthz"
-echo "    PostgreSQL → localhost:${RESOLVED_POSTGRES_HOST_PORT}"
+echo "    REST API        → http://localhost:${RESOLVED_BACK_HOST_PORT}"
+echo "    Swagger UI      → http://localhost:${RESOLVED_BACK_HOST_PORT}/api-docs"
+echo "    DB 웹 관리 (Adminer) → http://localhost:${RESOLVED_ADMINER_PORT}"
+echo "    PostgreSQL      → localhost:${RESOLVED_POSTGRES_HOST_PORT}"
+echo ""
+echo "  Adminer 접속 정보:"
+echo "    Server   : postgres"
+echo "    Username : postgres"
+echo "    Password : (빈칸)"
+echo "    Database : ai_edu"
 echo ""
 echo "  터미널 DB 접속:"
 echo "    psql -h localhost -p ${RESOLVED_POSTGRES_HOST_PORT} -U postgres -d ai_edu"

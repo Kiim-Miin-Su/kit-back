@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ForbiddenException,
 } from "@nestjs/common";
 import { CompleteFileUploadDto } from "./dto/complete-file-upload.dto";
 import { PresignFileDto } from "./dto/presign-file.dto";
@@ -24,7 +25,7 @@ export class FilesService {
     private readonly repository: FilesRepository,
   ) {}
 
-  presignFile(input: PresignFileDto): FilePresignResponse {
+  presignFile(input: PresignFileDto, ownerId: string): FilePresignResponse {
     this.assertContentType(input.contentType);
     this.assertFileSize(input.size);
     this.assertChecksum(input.checksum);
@@ -35,7 +36,7 @@ export class FilesService {
 
     const record: StoredFileRecord = {
       fileId,
-      ownerId: input.ownerId,
+      ownerId,
       fileName: input.fileName,
       bucketKey,
       contentType: input.contentType,
@@ -61,7 +62,7 @@ export class FilesService {
     };
   }
 
-  completeFileUpload(input: CompleteFileUploadDto): FileCompleteResponse {
+  completeFileUpload(input: CompleteFileUploadDto, ownerId: string): FileCompleteResponse {
     this.assertChecksum(input.checksum);
     this.assertFileSize(input.size);
 
@@ -73,6 +74,8 @@ export class FilesService {
         message: `fileId=${input.fileId} 파일을 찾을 수 없습니다.`,
       });
     }
+
+    this.assertFileOwner(found, ownerId);
 
     if (found.status !== "PENDING") {
       throw new ConflictException({
@@ -113,7 +116,7 @@ export class FilesService {
     };
   }
 
-  getFileMetadata(fileId: string): FileMetadataResponse {
+  getFileMetadata(fileId: string, ownerId: string): FileMetadataResponse {
     const found = this.repository.findById(fileId);
 
     if (!found) {
@@ -122,6 +125,8 @@ export class FilesService {
         message: `fileId=${fileId} 파일을 찾을 수 없습니다.`,
       });
     }
+
+    this.assertFileOwner(found, ownerId);
 
     return {
       fileId: found.fileId,
@@ -179,6 +184,15 @@ export class FilesService {
 
   private normalizeFileName(fileName: string) {
     return fileName.trim().replace(/\s+/g, "-");
+  }
+
+  private assertFileOwner(file: StoredFileRecord, ownerId: string) {
+    if (file.ownerId !== ownerId) {
+      throw new ForbiddenException({
+        code: "FILE_FORBIDDEN",
+        message: `fileId=${file.fileId} 파일 소유자만 접근할 수 있습니다.`,
+      });
+    }
   }
 
   private createId(prefix: string) {

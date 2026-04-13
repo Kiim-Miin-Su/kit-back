@@ -1,8 +1,13 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put } from "@nestjs/common";
+import { Body, Controller, Delete, Get, HttpCode, Param, Post, Put, UseGuards } from "@nestjs/common";
+import { AuthGuard } from "../auth/auth.guard";
+import { Roles } from "../auth/roles.decorator";
+import { RolesGuard } from "../auth/roles.guard";
 import { AdminService } from "./admin.service";
 import { CreateAdminScheduleDto, UpdateAdminScheduleDto } from "./dto/create-admin-schedule.dto";
 
 @Controller("admin/schedules")
+@UseGuards(AuthGuard, RolesGuard)
+@Roles("admin")
 export class AdminSchedulesController {
   constructor(private readonly adminService: AdminService) {}
 

@@ -29,7 +29,9 @@ if (!["compose", "local-node"].includes(options.preset)) {
 const templates = {
   compose: [
     "# Generated for Docker Compose development",
+    "HOST_PORT=4000",
     "PORT=4000",
+    "POSTGRES_HOST_PORT=5432",
     "CORS_ORIGIN=http://localhost:3000",
     "",
     "# memory | prisma",
@@ -46,7 +48,9 @@ const templates = {
   ].join("\n"),
   "local-node": [
     "# Generated for direct Node.js runtime",
+    "HOST_PORT=4000",
     "PORT=4000",
+    "POSTGRES_HOST_PORT=5432",
     "CORS_ORIGIN=http://localhost:3000",
     "",
     "# memory | prisma",

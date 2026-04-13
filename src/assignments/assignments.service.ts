@@ -1,5 +1,13 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { AdminService } from "../admin/admin.service";
+import { AuthenticatedRequestUser } from "../auth/auth.types";
+import { EnrollmentsService } from "../enrollments/enrollments.service";
 import { FILES_REPOSITORY, FilesRepository } from "../files/files.repository";
 import { StoredFileRecord } from "../files/files.types";
 import {
@@ -35,13 +43,16 @@ export class AssignmentsService {
     @Inject(ASSIGNMENTS_REPOSITORY)
     private readonly repository: AssignmentsRepository,
     private readonly adminService: AdminService,
+    private readonly enrollmentsService: EnrollmentsService,
     @Inject(FILES_REPOSITORY)
     private readonly filesRepository: FilesRepository,
   ) {}
 
-  getStudentWorkspace(studentId?: string, studentName?: string): StudentSubmissionWorkspaceData {
+  async getStudentWorkspace(
+    user: AuthenticatedRequestUser,
+  ): Promise<StudentSubmissionWorkspaceData> {
     const database = this.repository.read();
-    const profile = this.resolveStudentProfile(database, studentId, studentName);
+    const profile = await this.syncStudentProfileFromEnrollments(database, user);
     const assignments = this.filterAssignmentsByCourseIds(database, profile.enrolledCourseIds);
     const assignmentIdSet = new Set(assignments.map((assignment) => assignment.id));
     const templates = database.templates.filter((template) => assignmentIdSet.has(template.assignmentId));
@@ -64,8 +75,12 @@ export class AssignmentsService {
     };
   }
 
-  createStudentSubmission(input: CreateStudentSubmissionDto): AssignmentSubmission {
+  async createStudentSubmission(
+    user: AuthenticatedRequestUser,
+    input: CreateStudentSubmissionDto,
+  ): Promise<AssignmentSubmission> {
     const database = this.repository.read();
+    const profile = await this.syncStudentProfileFromEnrollments(database, user);
     const assignment = database.assignments.find((item) => item.id === input.assignmentId);
 
     if (!assignment) {
@@ -75,7 +90,7 @@ export class AssignmentsService {
       });
     }
 
-    if (!input.enrolledCourseIds.includes(assignment.courseId)) {
+    if (!profile.enrolledCourseIds.includes(assignment.courseId)) {
       throw new BadRequestException({
         code: "NOT_ENROLLED_COURSE",
         message: "수강 중인 과정의 과제만 제출할 수 있습니다.",
@@ -92,7 +107,7 @@ export class AssignmentsService {
       });
     }
 
-    const latest = this.findLatestStudentSubmission(database, input.studentId, assignment.id);
+    const latest = this.findLatestStudentSubmission(database, profile.id, assignment.id);
     const revision = latest ? latest.revision + 1 : 1;
     const now = new Date().toISOString();
     const submission: AssignmentSubmission = {
@@ -101,13 +116,13 @@ export class AssignmentsService {
       assignmentTitle: assignment.title,
       courseId: assignment.courseId,
       courseTitle: assignment.courseTitle,
-      studentId: input.studentId,
-      studentName: input.studentName,
+      studentId: profile.id,
+      studentName: profile.name,
       message: input.message,
       code: input.code,
       codeLanguage: input.codeLanguage,
       editorType: input.editorType,
-      attachments: this.resolveSubmissionAttachments(input.studentId, input.attachments),
+      attachments: this.resolveSubmissionAttachments(profile.id, input.attachments),
       submittedAt: now,
       updatedAt: now,
       reviewStatus: "SUBMITTED",
@@ -120,16 +135,16 @@ export class AssignmentsService {
       id: this.createRecordId("timeline"),
       submissionId: submission.id,
       type: revision > 1 ? "RESUBMITTED" : "SUBMITTED",
-      actorId: input.studentId,
-      actorName: input.studentName,
+      actorId: profile.id,
+      actorName: profile.name,
       createdAt: now,
       note: revision > 1 ? `${revision}차 재제출` : "초기 제출",
     });
 
     this.upsertStudentDirectory(database, {
-      studentId: input.studentId,
-      studentName: input.studentName,
-      enrolledCourseIds: input.enrolledCourseIds,
+      studentId: profile.id,
+      studentName: profile.name,
+      enrolledCourseIds: profile.enrolledCourseIds,
     });
 
     this.repository.write(database);
@@ -138,8 +153,8 @@ export class AssignmentsService {
       assignmentId: submission.assignmentId,
       assignmentTitle: submission.assignmentTitle,
       submissionId: submission.id,
-      actorId: submission.studentId,
-      actorName: submission.studentName,
+      actorId: profile.id,
+      actorName: profile.name,
       actorRole: "STUDENT",
       action: revision > 1 ? "RESUBMITTED" : "SUBMITTED",
       note: revision > 1 ? `${revision}차 재제출` : "초기 제출",
@@ -171,7 +186,10 @@ export class AssignmentsService {
     };
   }
 
-  getSubmissionDetail(submissionId: string): SubmissionDetailData {
+  getSubmissionDetail(
+    submissionId: string,
+    user: AuthenticatedRequestUser,
+  ): SubmissionDetailData {
     const database = this.repository.read();
     const submission = database.submissions.find((item) => item.id === submissionId);
 
@@ -179,6 +197,13 @@ export class AssignmentsService {
       throw new NotFoundException({
         code: "SUBMISSION_NOT_FOUND",
         message: "선택한 제출 이력을 찾을 수 없습니다.",
+      });
+    }
+
+    if (user.role === "student" && submission.studentId !== user.userId) {
+      throw new ForbiddenException({
+        code: "SUBMISSION_FORBIDDEN",
+        message: "본인 제출 이력만 조회할 수 있습니다.",
       });
     }
 
@@ -629,6 +654,22 @@ export class AssignmentsService {
 
     database.students.push(created);
     return created;
+  }
+
+  private async syncStudentProfileFromEnrollments(
+    database: AssignmentDatabase,
+    user: AuthenticatedRequestUser,
+  ) {
+    const enrolledCourses = await this.enrollmentsService.listMyCourses(user.userId);
+    const enrolledCourseIds = enrolledCourses.map((course) => course.id);
+
+    this.upsertStudentDirectory(database, {
+      studentId: user.userId,
+      studentName: user.name,
+      enrolledCourseIds,
+    });
+
+    return this.resolveStudentProfile(database, user.userId, user.name);
   }
 
   private upsertStudentDirectory(

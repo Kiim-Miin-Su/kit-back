@@ -16,7 +16,9 @@ function New-EnvContent($CurrentPreset) {
   if ($CurrentPreset -eq "local-node") {
     return @"
 # Generated for direct Node.js runtime
+HOST_PORT=4000
 PORT=4000
+POSTGRES_HOST_PORT=5432
 CORS_ORIGIN=http://localhost:3000
 
 # memory | prisma
@@ -34,7 +36,9 @@ OPENAI_API_KEY=
 
   return @"
 # Generated for Docker Compose development
+HOST_PORT=4000
 PORT=4000
+POSTGRES_HOST_PORT=5432
 CORS_ORIGIN=http://localhost:3000
 
 # memory | prisma
@@ -72,6 +76,10 @@ if (-not (Test-Command "docker")) {
   $Missing += "docker"
 }
 
+if (-not (Test-Command "psql")) {
+  $Missing += "postgres"
+}
+
 if ($Preset -eq "local-node") {
   if (-not (Test-Command "node")) {
     $Missing += "node"
@@ -81,9 +89,6 @@ if ($Preset -eq "local-node") {
     $Missing += "npm"
   }
 
-  if (-not (Test-Command "psql") -and -not (Test-Command "docker")) {
-    $Missing += "postgres"
-  }
 } elseif (-not (Test-Command "node") -or -not (Test-Command "npm")) {
   Write-Host "[optional] local node/npm이 없으면 Docker Compose 경로만 사용 가능합니다."
 }
@@ -131,8 +136,9 @@ Write-Host ""
 Write-Host "[next]"
 if ($Preset -eq "compose") {
   Write-Host "  1. Docker Desktop를 실행하고 WSL integration을 켭니다."
-  Write-Host "  2. docker compose up"
-  Write-Host "  3. http://localhost:4000/healthz 확인"
+  Write-Host "  2. psql 클라이언트가 설치되어 있는지 확인합니다."
+  Write-Host "  3. docker compose up"
+  Write-Host "  4. http://localhost:4000/healthz 확인"
 } else {
   Write-Host "  1. PostgreSQL을 localhost:5432에서 실행"
   Write-Host "  2. npm install"

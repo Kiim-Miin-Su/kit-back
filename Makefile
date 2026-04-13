@@ -1,4 +1,4 @@
-.PHONY: setup dev dev-d logs stop clean test seed shell studio migrate reset help
+.PHONY: setup dev dev-d logs stop clean test seed shell studio migrate reset psql help
 
 # ── 최초 설정 ──────────────────────────────────────────
 setup:         ## [첫 실행] Docker 확인 + .env 생성 + 서버 시작 + seed
@@ -38,6 +38,9 @@ seed:         ## seed 데이터 적재
 
 studio:       ## Prisma Studio 실행 (DB GUI)
 	docker compose exec back npm run prisma:studio
+
+psql:         ## 호스트 터미널에서 PostgreSQL 접속
+	psql -h localhost -p $$(grep -E '^POSTGRES_HOST_PORT=' .env | tail -n 1 | cut -d'=' -f2 || echo 5432) -U postgres -d ai_edu
 
 # ── 테스트 ──────────────────────────────────────────────
 test:         ## 통합 테스트 실행 (in-memory 모드)

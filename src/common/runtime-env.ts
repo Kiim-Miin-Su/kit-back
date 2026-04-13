@@ -1,5 +1,9 @@
 const DEFAULT_CORS_ORIGIN = "http://localhost:3000";
 const DEFAULT_AUTH_TOKEN_SECRET = "local-dev-auth-token-secret";
+const DEV_CORS_ORIGIN_PATTERNS = [
+  /^http:\/\/localhost(?::\d+)?$/,
+  /^http:\/\/127\.0\.0\.1(?::\d+)?$/,
+];
 
 function readNonEmptyEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -27,7 +31,22 @@ export function validateProductionRuntimeEnv() {
 }
 
 export function readCorsOrigin() {
-  return readNonEmptyEnv("CORS_ORIGIN") ?? DEFAULT_CORS_ORIGIN;
+  const configured = readNonEmptyEnv("CORS_ORIGIN");
+
+  if (configured) {
+    const values = configured
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    return values.length <= 1 ? values[0] : values;
+  }
+
+  if (!isProductionRuntime()) {
+    return DEV_CORS_ORIGIN_PATTERNS;
+  }
+
+  return DEFAULT_CORS_ORIGIN;
 }
 
 export function readAuthTokenSecret() {

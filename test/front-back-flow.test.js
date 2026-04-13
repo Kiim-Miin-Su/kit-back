@@ -40,6 +40,20 @@ let submissionsController;
 let courseAssignmentAuditController;
 let filesController;
 
+const studentKimHana = {
+  userId: "student-kim-hana",
+  email: "student-kim-hana@koreait.academy",
+  role: "student",
+  name: "김하나",
+};
+
+const studentDemo = {
+  userId: "student-demo-01",
+  email: "student-demo-01@koreait.academy",
+  role: "student",
+  name: "데모 수강생",
+};
+
 beforeEach(async () => {
   moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -171,10 +185,7 @@ test("front -> back: 관리자 회원검증/멤버배치 흐름", async () => {
 });
 
 test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async () => {
-  const studentWorkspace = meAssignmentsController.getWorkspace({
-    studentId: "student-kim-hana",
-    studentName: "김하나",
-  });
+  const studentWorkspace = await meAssignmentsController.getWorkspace(studentKimHana);
   assert.equal(studentWorkspace.studentId, "student-kim-hana");
   assert.ok(studentWorkspace.assignments.length > 0);
 
@@ -202,7 +213,10 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     ],
     enrolledCourseIds: ["course-next-ai-lms", "course-spring-lms-api"],
   });
-  const createdSubmission = meAssignmentsController.createSubmission(createSubmissionInput);
+  const createdSubmission = await meAssignmentsController.createSubmission(
+    studentKimHana,
+    createSubmissionInput,
+  );
 
   assert.equal(createdSubmission.studentId, "student-kim-hana");
   assert.equal(createdSubmission.assignmentId, targetAssignmentId);
@@ -248,7 +262,10 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
   assert.equal(feedbacked.reviewStatus, "REVIEWED");
   assert.ok(feedbacked.feedbackHistory.length >= 1);
 
-  const submissionDetail = submissionsController.getSubmissionDetail(createdSubmission.id);
+  const submissionDetail = submissionsController.getSubmissionDetail(
+    studentKimHana,
+    createdSubmission.id,
+  );
   assert.equal(submissionDetail.submission.id, createdSubmission.id);
   assert.equal(submissionDetail.submission.reviewStatus, "REVIEWED");
   assert.ok(submissionDetail.revisionHistory.some((item) => item.id === createdSubmission.id));
@@ -282,18 +299,18 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
   );
 
   const notEnrolledInput = await toValidatedDto(CreateStudentSubmissionDto, {
-    studentId: "student-kim-hana",
-    studentName: "김하나",
-    assignmentId: "assignment-next-auth-flow",
+    studentId: "student-demo-01",
+    studentName: "데모 수강생",
+    assignmentId: "assignment-spring-api-contract",
     editorType: "IDE",
     message: "수강 외 과목 제출 시도",
     code: "console.log('x')",
     codeLanguage: "typescript",
     attachments: [],
-    enrolledCourseIds: ["course-spring-lms-api"],
+    enrolledCourseIds: ["course-next-ai-lms", "course-llm-study-assistant"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(notEnrolledInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(studentDemo, notEnrolledInput)),
     400,
     "NOT_ENROLLED_COURSE",
   );
@@ -310,7 +327,7 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(invalidEmptyInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(studentKimHana, invalidEmptyInput)),
     400,
     "INVALID_SUBMISSION",
   );
@@ -334,7 +351,8 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(missingAttachmentInput)),
+    () =>
+      Promise.resolve(meAssignmentsController.createSubmission(studentKimHana, missingAttachmentInput)),
     400,
     "ATTACHMENT_FILE_NOT_FOUND",
   );
@@ -358,7 +376,7 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms", "course-llm-study-assistant"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(pendingAttachmentInput)),
+    () => Promise.resolve(meAssignmentsController.createSubmission(studentDemo, pendingAttachmentInput)),
     400,
     "ATTACHMENT_FILE_NOT_READY",
   );
@@ -382,7 +400,8 @@ test("front -> back: 과제 제출/리뷰/피드백/감사로그 흐름", async 
     enrolledCourseIds: ["course-next-ai-lms", "course-spring-lms-api"],
   });
   await expectHttpError(
-    () => Promise.resolve(meAssignmentsController.createSubmission(forbiddenAttachmentInput)),
+    () =>
+      Promise.resolve(meAssignmentsController.createSubmission(studentKimHana, forbiddenAttachmentInput)),
     400,
     "ATTACHMENT_FILE_FORBIDDEN",
   );
@@ -396,7 +415,7 @@ test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () =
     size: 1024,
     checksum: "d".repeat(64),
   });
-  const presign = filesController.presign(presignInput);
+  const presign = filesController.presign(studentKimHana, presignInput);
 
   assert.equal(presign.ownerId, "student-kim-hana");
   assert.equal(presign.status, "PENDING");
@@ -407,13 +426,13 @@ test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () =
     checksum: "d".repeat(64),
     size: 1024,
   });
-  const completed = filesController.complete(completeInput);
+  const completed = filesController.complete(studentKimHana, completeInput);
 
   assert.equal(completed.fileId, presign.fileId);
   assert.equal(completed.status, "COMPLETED");
   assert.ok(completed.downloadUrl.includes("storage.mock.local/download"));
 
-  const fileMeta = filesController.getFileMetadata(presign.fileId);
+  const fileMeta = filesController.getFileMetadata(studentKimHana, presign.fileId);
   assert.equal(fileMeta.fileId, presign.fileId);
   assert.equal(fileMeta.status, "COMPLETED");
   assert.equal(fileMeta.checksum, "d".repeat(64));
@@ -421,7 +440,7 @@ test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () =
   assert.ok(fileMeta.downloadUrl);
 
   await expectHttpError(
-    () => Promise.resolve(filesController.complete(completeInput)),
+    () => Promise.resolve(filesController.complete(studentKimHana, completeInput)),
     409,
     "FILE_UPLOAD_ALREADY_COMPLETED",
   );
@@ -433,14 +452,14 @@ test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () =
     size: 512,
     checksum: "a".repeat(64),
   });
-  const checksumMismatchTarget = filesController.presign(checksumMismatchPresignInput);
+  const checksumMismatchTarget = filesController.presign(studentKimHana, checksumMismatchPresignInput);
   const checksumMismatchCompleteInput = await toValidatedDto(CompleteFileUploadDto, {
     fileId: checksumMismatchTarget.fileId,
     checksum: "b".repeat(64),
     size: 512,
   });
   await expectHttpError(
-    () => Promise.resolve(filesController.complete(checksumMismatchCompleteInput)),
+    () => Promise.resolve(filesController.complete(studentKimHana, checksumMismatchCompleteInput)),
     400,
     "CHECKSUM_MISMATCH",
   );
@@ -453,13 +472,13 @@ test("front -> back: 파일 presign/complete/조회 + 예외 흐름", async () =
     checksum: "e".repeat(64),
   });
   await expectHttpError(
-    () => Promise.resolve(filesController.presign(unsupportedMimeInput)),
+    () => Promise.resolve(filesController.presign(studentKimHana, unsupportedMimeInput)),
     400,
     "UNSUPPORTED_MIME_TYPE",
   );
 
   await expectHttpError(
-    () => Promise.resolve(filesController.getFileMetadata("file-not-exists")),
+    () => Promise.resolve(filesController.getFileMetadata(studentKimHana, "file-not-exists")),
     404,
     "FILE_NOT_FOUND",
   );

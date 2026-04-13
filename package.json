@@ -9,6 +9,8 @@
     "start:prod": "node dist/main",
     "start:prod:prisma": "DATA_SOURCE=prisma node dist/main",
     "start": "node dist/main",
+    "setup:env": "node ./scripts/init-env.mjs",
+    "setup:env:local": "node ./scripts/init-env.mjs --preset=local-node",
     "test": "npm run build && node --test test/**/*.test.js",
     "test:prisma": "DATA_SOURCE=prisma npm test",
     "lint": "npm run typecheck",

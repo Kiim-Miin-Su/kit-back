@@ -6,15 +6,35 @@ NestJS + Prisma 기반 AI 교육 LMS REST API 서버입니다.
 
 ## 시작하기
 
-**사전 요구사항:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) 설치
+기본 개발 경로는 Docker Compose입니다.
+
+사전 점검부터 하고 싶다면:
+
+```bash
+# macOS / Linux / WSL
+bash ./scripts/setup-dev.sh --preset=compose
+```
+
+```powershell
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-dev.ps1 -Preset compose
+```
+
+위 스크립트는 Docker/Node/npm 존재 여부를 확인하고, 없으면 설치 명령 예시를 보여주며, `.env`가 없을 때 compose용 `.env`도 만들어 줍니다.
 
 ```bash
 git clone <repo-url>
 cd back
-docker compose up
+make run
 ```
 
 처음 실행 시 `npm install` → `prisma generate` → `prisma migrate deploy` → 서버 시작이 자동으로 진행됩니다.
+
+직접 compose 명령을 쓰고 싶다면 아래도 동일하게 동작합니다.
+
+```bash
+bash ./scripts/run-dev.sh
+```
 
 | 서비스 | URL |
 |--------|-----|
@@ -28,6 +48,10 @@ docker compose up
 ## 자주 쓰는 명령어
 
 ```bash
+make setup      # 사전 요구사항 점검 + compose용 .env 생성
+make env        # compose용 .env 생성
+make env-local  # 로컬 Node.js 실행용 .env 생성
+make run        # clone 직후 실행용: setup 후 docker compose up
 make dev        # 개발 서버 실행 (= docker compose up)
 make logs       # 로그 스트리밍
 make seed       # 개발용 테스트 데이터 적재
@@ -54,10 +78,10 @@ make help       # 전체 명령어 목록
 
 ## 환경 변수
 
-개발용 Docker Compose는 `.env` 없이 바로 실행됩니다. 프로덕션 배포나 직접 실행 때만 `.env`를 준비하세요.
+개발용 Docker Compose는 `.env` 없이도 실행되지만, `make run` 또는 `bash ./scripts/run-dev.sh`를 쓰면 `.env`가 없을 때 자동으로 생성한 뒤 실행합니다. `.env`만 먼저 만들고 싶다면 아래 명령을 사용하세요.
 
 ```bash
-cp .env.example .env
+npm run setup:env
 ```
 
 | 변수 | 개발 기본값 | 설명 |
@@ -70,6 +94,21 @@ cp .env.example .env
 | `AUTH_TOKEN_SECRET` | 개발 시 내장 fallback / 프로덕션은 `.env` 필수 | HMAC 서명 시크릿 |
 | `OPENAI_API_KEY` | 비워 둠 | 향후 AI 기능용 API 키 (현재 선택) |
 
+`.env` 생성 프리셋:
+
+```bash
+# Docker Compose용 .env 생성
+npm run setup:env
+
+# 로컬 Node.js + localhost postgres용 .env 생성
+npm run setup:env:local
+```
+
+주의:
+- `npm run setup:env`는 `DATABASE_URL=postgresql://postgres@postgres:5432/ai_edu`로 생성됩니다.
+- `npm run setup:env:local`은 `DATABASE_URL=postgresql://postgres@localhost:5432/ai_edu`로 생성됩니다.
+- `local` 프리셋으로 만든 `.env`를 그대로 `docker compose up`에 쓰면 컨테이너 내부 DB 연결이 깨질 수 있습니다.
+
 ---
 
 ## 로컬 직접 실행 (Node.js 20+)
@@ -80,12 +119,11 @@ Docker 없이 Node.js로 직접 실행하는 경우:
 # 1. 의존성 설치
 npm install
 
-# 2. PostgreSQL만 Docker로 실행
-docker compose up postgres -d
+# 2. .env 생성
+npm run setup:env:local
 
-# 3. 환경 변수 설정
-cp .env.example .env
-# DATABASE_URL을 localhost 기준으로 유지하거나 실제 DB URL로 교체합니다.
+# 3. PostgreSQL만 Docker로 실행
+docker compose up postgres -d
 
 # 4. Prisma 준비
 npm run prisma:generate
@@ -97,6 +135,12 @@ npm run prisma:seed
 # 6. 개발 서버 실행
 npm run start:dev:prisma  # Prisma 모드
 npm run start:dev         # in-memory 모드 (DB 불필요)
+```
+
+Windows에서 WSL, Docker Desktop, PostgreSQL까지 같이 점검하거나 설치 명령을 받고 싶다면:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-dev.ps1 -Preset local-node
 ```
 
 ---

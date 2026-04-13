@@ -1,4 +1,16 @@
-.PHONY: dev dev-d logs stop clean test seed shell studio migrate reset
+.PHONY: setup env env-local run dev dev-d logs stop clean test seed shell studio migrate reset
+
+setup:        ## 사전 요구사항 점검 + compose용 .env 생성
+	bash ./scripts/setup-dev.sh --preset=compose
+
+env:          ## compose용 .env 생성
+	node ./scripts/init-env.mjs --preset=compose
+
+env-local:    ## 로컬 Node.js 실행용 .env 생성
+	node ./scripts/init-env.mjs --preset=local-node
+
+run:          ## clone 직후 실행용: setup 후 docker compose up
+	bash ./scripts/run-dev.sh
 
 # ── 개발 환경 ──────────────────────────────────────────
 dev:          ## 개발 서버 실행 (foreground, 핫 리로드)

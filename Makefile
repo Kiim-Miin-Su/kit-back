@@ -36,8 +36,8 @@ migrate:      ## Prisma 마이그레이션 생성 (dev)
 seed:         ## seed 데이터 적재
 	docker compose exec back npm run prisma:seed
 
-studio:       ## Prisma Studio 실행 → http://localhost:5555
-	docker compose exec back npm run prisma:studio
+studio:       ## Prisma Studio 로그 확인 → http://localhost:5555 (up -d 시 자동 기동)
+	docker compose logs -f studio
 
 adminer:      ## Adminer 웹 DB 관리 → http://localhost:8080
 	@echo "Adminer: http://localhost:$$(grep ADMINER_PORT .env 2>/dev/null | cut -d= -f2 || echo 8080)"

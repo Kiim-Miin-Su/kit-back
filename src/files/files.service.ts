@@ -6,6 +6,8 @@ import {
   NotFoundException,
   ForbiddenException,
 } from "@nestjs/common";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { CompleteFileUploadDto } from "./dto/complete-file-upload.dto";
 import { PresignFileDto } from "./dto/presign-file.dto";
 import { FILES_REPOSITORY, FilesRepository } from "./files.repository";
@@ -18,14 +20,21 @@ import {
   StoredFileRecord,
 } from "./files.types";
 
+const S3_BUCKET = process.env.S3_BUCKET_UPLOADS ?? "";
+const AWS_REGION = process.env.AWS_REGION ?? "ap-northeast-2";
+const UPLOAD_URL_EXPIRES_IN = 900;
+
 @Injectable()
 export class FilesService {
+  private readonly s3 = new S3Client({ region: AWS_REGION });
+
   constructor(
     @Inject(FILES_REPOSITORY)
     private readonly repository: FilesRepository,
   ) {}
 
-  presignFile(input: PresignFileDto, ownerId: string): FilePresignResponse {
+  async presignFile(input: PresignFileDto & { ownerId: string }): Promise<FilePresignResponse> {
+
     this.assertContentType(input.contentType);
     this.assertFileSize(input.size);
     this.assertChecksum(input.checksum);
@@ -33,6 +42,7 @@ export class FilesService {
     const now = new Date().toISOString();
     const fileId = this.createId("file");
     const bucketKey = `${input.ownerId}/${fileId}/${this.normalizeFileName(input.fileName)}`;
+    const uploadUrl = await this.buildUploadUrl(bucketKey, input.contentType, input.checksum);
 
     const record: StoredFileRecord = {
       fileId,
@@ -43,7 +53,7 @@ export class FilesService {
       size: input.size,
       checksum: input.checksum,
       status: "PENDING",
-      uploadUrl: this.buildUploadUrl(bucketKey),
+      uploadUrl,
       createdAt: now,
     };
 
@@ -62,7 +72,8 @@ export class FilesService {
     };
   }
 
-  completeFileUpload(input: CompleteFileUploadDto, ownerId: string): FileCompleteResponse {
+  async completeFileUpload(input: CompleteFileUploadDto): Promise<FileCompleteResponse> {
+
     this.assertChecksum(input.checksum);
     this.assertFileSize(input.size);
 
@@ -116,7 +127,8 @@ export class FilesService {
     };
   }
 
-  getFileMetadata(fileId: string, ownerId: string): FileMetadataResponse {
+  async getFileMetadata(fileId: string): Promise<FileMetadataResponse> {
+
     const found = this.repository.findById(fileId);
 
     if (!found) {
@@ -172,14 +184,27 @@ export class FilesService {
     }
   }
 
-  private buildUploadUrl(bucketKey: string) {
-    const encoded = encodeURIComponent(bucketKey);
-    return `https://storage.mock.local/upload/${encoded}?signature=dev-signature`;
+  private async buildUploadUrl(bucketKey: string, contentType: string, checksum: string): Promise<string> {
+    if (!S3_BUCKET) {
+      return `https://storage.mock.local/upload/${encodeURIComponent(bucketKey)}?signature=dev-signature`;
+    }
+
+    const command = new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: bucketKey,
+      ContentType: contentType,
+      ChecksumSHA256: checksum,
+    });
+
+    return getSignedUrl(this.s3, command, { expiresIn: UPLOAD_URL_EXPIRES_IN });
   }
 
   private buildDownloadUrl(bucketKey: string) {
-    const encoded = encodeURIComponent(bucketKey);
-    return `https://storage.mock.local/download/${encoded}`;
+    if (!S3_BUCKET) {
+      return `https://storage.mock.local/download/${encodeURIComponent(bucketKey)}`;
+    }
+
+    return `https://${S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${bucketKey}`;
   }
 
   private normalizeFileName(fileName: string) {

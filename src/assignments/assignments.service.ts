@@ -60,8 +60,6 @@ export class AssignmentsService {
       .filter((submission) => submission.studentId === profile.id)
       .sort((a, b) => Number(new Date(b.submittedAt)) - Number(new Date(a.submittedAt)));
 
-    this.repository.write(database);
-
     return {
       studentId: profile.id,
       studentName: profile.name,
@@ -75,10 +73,9 @@ export class AssignmentsService {
     };
   }
 
-  async createStudentSubmission(
-    user: AuthenticatedRequestUser,
-    input: CreateStudentSubmissionDto,
-  ): Promise<AssignmentSubmission> {
+  createStudentSubmission(
+    input: CreateStudentSubmissionDto & { studentId: string; studentName: string },
+  ): AssignmentSubmission {
     const database = this.repository.read();
     const profile = await this.syncStudentProfileFromEnrollments(database, user);
     const assignment = database.assignments.find((item) => item.id === input.assignmentId);
@@ -251,7 +248,7 @@ export class AssignmentsService {
   }
 
   createInstructorAssignment(
-    input: CreateInstructorAssignmentDto,
+    input: CreateInstructorAssignmentDto & { actorId: string; actorName: string; actorRole?: AssignmentActorRole },
   ): CreateInstructorAssignmentResult {
     const database = this.repository.read();
     const now = new Date().toISOString();
@@ -320,7 +317,7 @@ export class AssignmentsService {
     }
 
     this.repository.write(database);
-    const actorRole = this.resolveActorRole(input.actorId, "INSTRUCTOR");
+    const actorRole = input.actorRole ?? this.resolveActorRole(input.actorId, "INSTRUCTOR");
 
     this.recordAuditEvent({
       courseId: assignment.courseId,
@@ -352,7 +349,10 @@ export class AssignmentsService {
     };
   }
 
-  updateInstructorAssignment(assignmentId: string, input: UpdateInstructorAssignmentDto) {
+  updateInstructorAssignment(
+    assignmentId: string,
+    input: UpdateInstructorAssignmentDto & { actorId: string; actorName: string; actorRole?: AssignmentActorRole },
+  ) {
     const database = this.repository.read();
     const target = database.assignments.find((assignment) => assignment.id === assignmentId);
 
@@ -410,7 +410,7 @@ export class AssignmentsService {
       assignmentTitle: updated.title,
       actorId: input.actorId,
       actorName: input.actorName,
-      actorRole: this.resolveActorRole(input.actorId, "INSTRUCTOR"),
+      actorRole: input.actorRole ?? this.resolveActorRole(input.actorId, "INSTRUCTOR"),
       action: "ASSIGNMENT_UPDATED",
       note: "과제 메타 수정",
     });
@@ -418,7 +418,10 @@ export class AssignmentsService {
     return updated;
   }
 
-  upsertAssignmentTemplate(assignmentId: string, input: UpsertAssignmentTemplateDto): AssignmentTemplate {
+  upsertAssignmentTemplate(
+    assignmentId: string,
+    input: UpsertAssignmentTemplateDto & { actorId: string; actorName: string; actorRole?: AssignmentActorRole },
+  ): AssignmentTemplate {
     const database = this.repository.read();
     const assignment = database.assignments.find((item) => item.id === assignmentId);
 
@@ -474,7 +477,7 @@ export class AssignmentsService {
       assignmentTitle: assignment.title,
       actorId: input.actorId,
       actorName: input.actorName,
-      actorRole: this.resolveActorRole(input.actorId, "INSTRUCTOR"),
+      actorRole: input.actorRole ?? this.resolveActorRole(input.actorId, "INSTRUCTOR"),
       action: "TEMPLATE_UPDATED",
       note: `템플릿 업데이트: ${input.editorType}/${input.codeLanguage}`,
     });
@@ -484,7 +487,7 @@ export class AssignmentsService {
 
   updateSubmissionReviewStatus(
     submissionId: string,
-    input: UpdateSubmissionReviewStatusDto,
+    input: UpdateSubmissionReviewStatusDto & { actorId: string; actorName: string; actorRole?: AssignmentActorRole },
   ): AssignmentSubmission {
     const database = this.repository.read();
     const target = database.submissions.find((submission) => submission.id === submissionId);
@@ -526,7 +529,7 @@ export class AssignmentsService {
       submissionId: updated.id,
       actorId: input.actorId,
       actorName: input.actorName,
-      actorRole: this.resolveActorRole(input.actorId, "INSTRUCTOR"),
+      actorRole: input.actorRole ?? this.resolveActorRole(input.actorId, "INSTRUCTOR"),
       action: "REVIEW_STATUS_CHANGED",
       note,
     });
@@ -534,7 +537,10 @@ export class AssignmentsService {
     return updated;
   }
 
-  addSubmissionFeedback(submissionId: string, input: AddSubmissionFeedbackDto): AssignmentSubmission {
+  addSubmissionFeedback(
+    submissionId: string,
+    input: AddSubmissionFeedbackDto & { reviewerId: string; reviewerName: string; reviewerRole?: AssignmentActorRole },
+  ): AssignmentSubmission {
     const database = this.repository.read();
     const target = database.submissions.find((submission) => submission.id === submissionId);
 
@@ -595,7 +601,7 @@ export class AssignmentsService {
     }
 
     this.repository.write(database);
-    const actorRole = this.resolveActorRole(input.reviewerId, "INSTRUCTOR");
+    const actorRole = input.reviewerRole ?? this.resolveActorRole(input.reviewerId, "INSTRUCTOR");
 
     this.recordAuditEvent({
       courseId: updated.courseId,

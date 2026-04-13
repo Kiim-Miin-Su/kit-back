@@ -139,9 +139,9 @@ psql -h localhost -p 5433 -U postgres -d ai_edu
 | REST API | http://localhost:4000 | `HOST_PORT` 변수에 따라 바뀜 |
 | **Swagger UI** | **http://localhost:4000/api-docs** | 포트는 HOST_PORT와 동일 |
 | **Adminer (웹 DB GUI)** | **http://localhost:8080** | `ADMINER_PORT` 변수에 따라 바뀜 |
-| **Prisma Studio** | **http://localhost:5555** | `make studio` 실행 후 접속 |
+| **Prisma Studio (웹 DB GUI)** | **http://localhost:5555** | `up -d` 시 자동 기동 (back healthy 후) |
 | 헬스 체크 | http://localhost:4000/healthz | |
-| PostgreSQL | localhost:5432 | `POSTGRES_HOST_PORT` 변수에 따라 바뀜 |
+| PostgreSQL | localhost:5432 (터미널 전용) | 브라우저 접속 불가 — DB GUI는 Adminer/Prisma Studio 사용 |
 
 > **실제 포트 확인:** `setup.sh` 완료 메시지에 출력된 주소를 사용하거나, `cat .env | grep HOST_PORT`로 확인하세요.
 >

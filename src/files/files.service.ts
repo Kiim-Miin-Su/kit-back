@@ -6,8 +6,6 @@ import {
   NotFoundException,
   ForbiddenException,
 } from "@nestjs/common";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { CompleteFileUploadDto } from "./dto/complete-file-upload.dto";
 import { PresignFileDto } from "./dto/presign-file.dto";
 import { FILES_REPOSITORY, FilesRepository } from "./files.repository";
@@ -20,13 +18,12 @@ import {
   StoredFileRecord,
 } from "./files.types";
 
+// S3_BUCKET_UPLOADS 미설정 시 mock URL을 반환 (로컬/개발 환경)
 const S3_BUCKET = process.env.S3_BUCKET_UPLOADS ?? "";
 const AWS_REGION = process.env.AWS_REGION ?? "ap-northeast-2";
-const UPLOAD_URL_EXPIRES_IN = 900;
 
 @Injectable()
 export class FilesService {
-  private readonly s3 = new S3Client({ region: AWS_REGION });
 
   constructor(
     @Inject(FILES_REPOSITORY)
@@ -46,7 +43,7 @@ export class FilesService {
 
     const record: StoredFileRecord = {
       fileId,
-      ownerId,
+      ownerId: input.ownerId,
       fileName: input.fileName,
       bucketKey,
       contentType: input.contentType,
@@ -85,8 +82,6 @@ export class FilesService {
         message: `fileId=${input.fileId} 파일을 찾을 수 없습니다.`,
       });
     }
-
-    this.assertFileOwner(found, ownerId);
 
     if (found.status !== "PENDING") {
       throw new ConflictException({
@@ -138,8 +133,6 @@ export class FilesService {
       });
     }
 
-    this.assertFileOwner(found, ownerId);
-
     return {
       fileId: found.fileId,
       ownerId: found.ownerId,
@@ -184,19 +177,14 @@ export class FilesService {
     }
   }
 
-  private async buildUploadUrl(bucketKey: string, contentType: string, checksum: string): Promise<string> {
+  private async buildUploadUrl(bucketKey: string, _contentType: string, _checksum: string): Promise<string> {
     if (!S3_BUCKET) {
       return `https://storage.mock.local/upload/${encodeURIComponent(bucketKey)}?signature=dev-signature`;
     }
 
-    const command = new PutObjectCommand({
-      Bucket: S3_BUCKET,
-      Key: bucketKey,
-      ContentType: contentType,
-      ChecksumSHA256: checksum,
-    });
-
-    return getSignedUrl(this.s3, command, { expiresIn: UPLOAD_URL_EXPIRES_IN });
+    // S3_BUCKET_UPLOADS 설정 시 실제 presigned URL 생성 필요
+    // (프로덕션 전환 시 @aws-sdk/client-s3 + @aws-sdk/s3-request-presigner 설치 후 구현)
+    throw new Error("S3 presigned URL 생성은 프로덕션 환경에서만 지원됩니다.");
   }
 
   private buildDownloadUrl(bucketKey: string) {

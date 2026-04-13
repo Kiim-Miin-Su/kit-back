@@ -73,11 +73,12 @@ export class AssignmentsService {
     };
   }
 
-  createStudentSubmission(
+  async createStudentSubmission(
     input: CreateStudentSubmissionDto & { studentId: string; studentName: string },
-  ): AssignmentSubmission {
+  ): Promise<AssignmentSubmission> {
     const database = this.repository.read();
-    const profile = await this.syncStudentProfileFromEnrollments(database, user);
+    const mockUser = { userId: input.studentId, name: input.studentName, role: "student", email: "" } as AuthenticatedRequestUser;
+    const profile = await this.syncStudentProfileFromEnrollments(database, mockUser);
     const assignment = database.assignments.find((item) => item.id === input.assignmentId);
 
     if (!assignment) {

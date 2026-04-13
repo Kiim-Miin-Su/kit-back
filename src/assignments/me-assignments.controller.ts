@@ -17,7 +17,7 @@ export class MeAssignmentsController {
   @ApiOperation({ summary: "나의 과제 워크스페이스 조회", description: "수강 중인 강의의 과제 목록과 제출 이력을 반환합니다." })
   @ApiResponse({ status: 200, description: "과제 워크스페이스 반환" })
   getWorkspace(@CurrentUser() user: AuthenticatedRequestUser) {
-    return this.assignmentsService.getStudentWorkspace(user.userId, user.name);
+    return this.assignmentsService.getStudentWorkspace(user);
   }
 
   @Post("submissions")

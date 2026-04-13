@@ -1,6 +1,8 @@
 import { Controller, Get, Param, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
 import { AuthGuard } from "../auth/auth.guard";
+import { CurrentUser } from "../auth/current-user.decorator";
+import { AuthenticatedRequestUser } from "../auth/auth.types";
 import { AssignmentsService } from "./assignments.service";
 
 @ApiTags("submissions")
@@ -14,7 +16,10 @@ export class SubmissionsController {
   @ApiOperation({ summary: "제출 상세 조회 (revisionHistory + timeline 포함)" })
   @ApiResponse({ status: 200, description: "제출 상세 데이터 반환" })
   @ApiResponse({ status: 404, description: "제출 없음 (SUBMISSION_NOT_FOUND)" })
-  getSubmissionDetail(@Param("submissionId") submissionId: string) {
-    return this.assignmentsService.getSubmissionDetail(submissionId);
+  getSubmissionDetail(
+    @CurrentUser() user: AuthenticatedRequestUser,
+    @Param("submissionId") submissionId: string,
+  ) {
+    return this.assignmentsService.getSubmissionDetail(submissionId, user);
   }
 }

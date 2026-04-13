@@ -300,19 +300,28 @@ back/
 │   │   ├── data-source.ts      # DATA_SOURCE 스위칭 헬퍼
 │   │   └── runtime-env.ts      # 환경 변수 읽기 + 프로덕션 검증
 │   ├── auth/                   # HMAC 토큰 + refresh cookie 인증
+│   ├── ai/                     # AI 연동 서비스
+│   ├── analytics/              # 학습/운영 분석 집계
 │   ├── users/                  # 회원가입, 내 정보
 │   ├── courses/                # 강좌 카탈로그, 감사로그
+│   ├── curriculums/            # 커리큘럼 조회/구성
 │   ├── enrollments/            # 수강 신청/관리
 │   ├── attendance/             # 출석 체크, 워크스페이스
 │   ├── assignments/            # 과제/제출/리뷰/피드백
 │   ├── admin/                  # 관리자 사용자·수업·일정·출석 scope
-│   ├── files/                  # presign URL, 파일 메타
+│   ├── files/                  # 로컬 업로드 URL, 파일 메타
 │   ├── health/                 # GET /healthz
-│   └── prisma/                 # PrismaService, PrismaModule
+│   ├── notifications/          # 알림 생성/조회
+│   ├── progress/               # 진도 데이터
+│   ├── quizzes/                # 퀴즈 도메인
+│   ├── prisma/                 # PrismaService, PrismaModule
+│   └── mock-data/              # 메모리 저장소 초기 데이터
 ├── prisma/
 │   ├── schema.prisma           # DB 스키마
 │   ├── seed.ts                 # 개발용 seed 데이터
 │   └── migrations/             # Prisma 마이그레이션 이력
+├── scripts/                    # 환경 설정/실행 보조 스크립트
+├── progress/                   # 작업 기록/진행 메모
 ├── test/                       # 통합 테스트 (Node test runner)
 ├── setup.sh                    # 최초 설정 스크립트 (clone 후 바로 실행)
 ├── Makefile                    # 자주 쓰는 명령어 단축키
@@ -321,6 +330,31 @@ back/
 ├── docker-compose.prod.yml     # 프로덕션 환경 (빌드 이미지 + migrate job)
 └── .env.example                # 환경 변수 템플릿
 ```
+
+### 폴더별 역할 요약
+
+| 경로 | 역할 |
+|------|------|
+| `src/auth` | 로그인, 토큰, 가드, 현재 사용자 해석 |
+| `src/users` | 회원가입과 내 정보 |
+| `src/courses` | 강좌 카탈로그와 운영용 감사 조회 |
+| `src/curriculums` | 커리큘럼 데이터 제공 |
+| `src/enrollments` | 수강 신청/취소/워크스페이스 조회 |
+| `src/attendance` | 출석 체크와 출석 범위 처리 |
+| `src/assignments` | 과제, 제출, 피드백, 타임라인 |
+| `src/admin` | 관리자 운영 API |
+| `src/files` | 로컬 mock 업로드 URL과 파일 메타 처리 |
+| `src/analytics` | 대시보드용 분석 데이터 |
+| `src/notifications` | 사용자 알림 데이터 |
+| `src/progress` | 학습 진도 데이터 |
+| `src/quizzes` | 퀴즈 관련 API |
+| `src/ai` | AI 기능 연동 |
+| `src/prisma` | Prisma 모듈과 DB 연결 |
+| `src/mock-data` | memory 모드 기본 데이터 |
+| `prisma` | 스키마, 마이그레이션, 시드 |
+| `scripts` | 개발 환경 스크립트 |
+| `progress` | 작업 메모/히스토리 |
+| `test` | 백엔드 테스트 |
 
 ---
 

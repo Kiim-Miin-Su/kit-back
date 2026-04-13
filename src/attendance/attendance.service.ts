@@ -144,10 +144,13 @@ export class AttendanceService {
     }
 
     const checkedAt = new Date().toISOString();
+    const isLate = this.isLateCheckIn(target.attendanceWindowStartAt, checkedAt);
+    const attendanceStatus = isLate ? "LATE" : "CHECKED_IN";
+
     const nextRecord: AttendanceRecord = {
       userId,
       scheduleKey,
-      attendanceStatus: "CHECKED_IN",
+      attendanceStatus,
       checkedAt,
     };
 
@@ -159,9 +162,9 @@ export class AttendanceService {
 
     return {
       scheduleId,
-      attendanceStatus: "CHECKED_IN",
+      attendanceStatus,
       checkedAt,
-      isLate: false,
+      isLate,
     };
   }
 
@@ -254,6 +257,17 @@ export class AttendanceService {
 
     const now = Date.now();
     return now >= new Date(startAt).getTime() && now <= new Date(endAt).getTime();
+  }
+
+  private isLateCheckIn(windowStartAt?: string, checkedAt?: string): boolean {
+    if (!windowStartAt || !checkedAt) {
+      return false;
+    }
+
+    const lateThresholdMs = 10 * 60 * 1000;
+    const startTime = new Date(windowStartAt).getTime();
+    const checkTime = new Date(checkedAt).getTime();
+    return checkTime > startTime + lateThresholdMs;
   }
 
   private addDays(date: Date, days: number) {

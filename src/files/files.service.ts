@@ -20,12 +20,14 @@ import {
 
 @Injectable()
 export class FilesService {
+
   constructor(
     @Inject(FILES_REPOSITORY)
     private readonly repository: FilesRepository,
   ) {}
 
-  presignFile(input: PresignFileDto, ownerId: string): FilePresignResponse {
+  async presignFile(input: PresignFileDto & { ownerId: string }): Promise<FilePresignResponse> {
+
     this.assertContentType(input.contentType);
     this.assertFileSize(input.size);
     this.assertChecksum(input.checksum);
@@ -33,17 +35,18 @@ export class FilesService {
     const now = new Date().toISOString();
     const fileId = this.createId("file");
     const bucketKey = `${input.ownerId}/${fileId}/${this.normalizeFileName(input.fileName)}`;
+    const uploadUrl = await this.buildUploadUrl(bucketKey, input.contentType, input.checksum);
 
     const record: StoredFileRecord = {
       fileId,
-      ownerId,
+      ownerId: input.ownerId,
       fileName: input.fileName,
       bucketKey,
       contentType: input.contentType,
       size: input.size,
       checksum: input.checksum,
       status: "PENDING",
-      uploadUrl: this.buildUploadUrl(bucketKey),
+      uploadUrl,
       createdAt: now,
     };
 
@@ -62,7 +65,8 @@ export class FilesService {
     };
   }
 
-  completeFileUpload(input: CompleteFileUploadDto, ownerId: string): FileCompleteResponse {
+  async completeFileUpload(input: CompleteFileUploadDto): Promise<FileCompleteResponse> {
+
     this.assertChecksum(input.checksum);
     this.assertFileSize(input.size);
 
@@ -74,8 +78,6 @@ export class FilesService {
         message: `fileId=${input.fileId} 파일을 찾을 수 없습니다.`,
       });
     }
-
-    this.assertFileOwner(found, ownerId);
 
     if (found.status !== "PENDING") {
       throw new ConflictException({
@@ -116,7 +118,8 @@ export class FilesService {
     };
   }
 
-  getFileMetadata(fileId: string, ownerId: string): FileMetadataResponse {
+  async getFileMetadata(fileId: string): Promise<FileMetadataResponse> {
+
     const found = this.repository.findById(fileId);
 
     if (!found) {
@@ -125,8 +128,6 @@ export class FilesService {
         message: `fileId=${fileId} 파일을 찾을 수 없습니다.`,
       });
     }
-
-    this.assertFileOwner(found, ownerId);
 
     return {
       fileId: found.fileId,
@@ -172,14 +173,12 @@ export class FilesService {
     }
   }
 
-  private buildUploadUrl(bucketKey: string) {
-    const encoded = encodeURIComponent(bucketKey);
-    return `https://storage.mock.local/upload/${encoded}?signature=dev-signature`;
+  private async buildUploadUrl(bucketKey: string, _contentType: string, _checksum: string): Promise<string> {
+    return `https://storage.mock.local/upload/${encodeURIComponent(bucketKey)}?signature=dev-signature`;
   }
 
   private buildDownloadUrl(bucketKey: string) {
-    const encoded = encodeURIComponent(bucketKey);
-    return `https://storage.mock.local/download/${encoded}`;
+    return `https://storage.mock.local/download/${encodeURIComponent(bucketKey)}`;
   }
 
   private normalizeFileName(fileName: string) {

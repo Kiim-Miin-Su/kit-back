@@ -1,5 +1,25 @@
 import { AppUserRole } from "../users/users.types";
 
+export interface CookieRequest {
+  headers: {
+    cookie?: string;
+  };
+}
+
+export interface CookieResponse {
+  cookie: (
+    name: string,
+    value: string,
+    options: {
+      httpOnly: boolean;
+      sameSite: "lax";
+      secure: boolean;
+      path: string;
+      maxAge: number;
+    },
+  ) => void;
+}
+
 export interface AuthenticatedRequestUser {
   userId: string;
   email: string;

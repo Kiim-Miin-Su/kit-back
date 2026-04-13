@@ -8,12 +8,6 @@ import { SubmissionAttachmentDto } from "./submission-shared.dto";
 
 export class CreateStudentSubmissionDto {
   @IsString()
-  studentId!: string;
-
-  @IsString()
-  studentName!: string;
-
-  @IsString()
   assignmentId!: string;
 
   @IsIn(submissionEditorTypeValues)
